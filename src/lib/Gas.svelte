@@ -1,11 +1,12 @@
 <script lang="ts">
 	import { Chart, type Point, type TooltipItem }            from 'chart.js/auto';
 	import moment                                             from 'moment/moment';
-	import { onMount }                                        from 'svelte';
+	import { onDestroy, onMount }                             from 'svelte';
 	import { apiKey, backendUrl, formatCurrency, formatDate } from '$lib/lib';
 	import type { GasTransaction }                            from '$lib/transaction';
 	import { slide }                                          from 'svelte/transition';
-	import GasSummary                                         from '$lib/GasSummary.svelte';
+	import GasSummary                from '$lib/GasSummary.svelte';
+	import { offRefresh, onRefresh } from '$lib/date-service';
 
 	export let startDate: string      = new Date().toISOString().split('T')[0];
 	export let endDate: string        = new Date().toISOString().split('T')[0];
@@ -36,7 +37,15 @@
 			.catch(err => console.error(err));
 	};
 
-	onMount(() => mounted = true);
+	onMount(() => {
+		mounted = true;
+		onRefresh(fetchData);
+	});
+
+	onDestroy(() => {
+		mounted = false;
+		offRefresh(fetchData);
+	});
 
 	// Create chart with chart.js
 	const createChart = () => {
@@ -174,9 +183,6 @@
 	};
 
 	const getData = (func: (tx: GasTransaction) => { x: string | number, y: number }) => transaction.map(func);
-
-	// noinspection JSUnusedGlobalSymbols
-	export const refresh = fetchData;
 </script>
 
 {#if chart}

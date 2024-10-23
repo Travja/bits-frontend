@@ -2,14 +2,17 @@
 	import type { Transaction }                                            from '$lib/transaction';
 	import { Chart, type Point, type TooltipItem }                         from 'chart.js/auto';
 	import moment                                                          from 'moment/moment';
-	import { onMount }                                                     from 'svelte';
+	import { onDestroy, onMount }                                          from 'svelte';
 	import { apiKey, backendUrl, formatCurrency, formatDate, formatMonth } from '$lib/lib';
 	import CashSummary                                                     from '$lib/CashSummary.svelte';
-	import { slide }                                                       from 'svelte/transition';
+	import { slide }                 from 'svelte/transition';
+	import { offRefresh, onRefresh } from '$lib/date-service';
 
-	export let startDate: string   = new Date().toISOString().split('T')[0];
-	export let endDate: string     = new Date().toISOString().split('T')[0];
-	let transaction: Transaction[] = [];
+	export let startDate: string           = new Date().toISOString().split('T')[0];
+	export let endDate: string             = new Date().toISOString().split('T')[0];
+	let transaction: Transaction[]         = [];
+	let incomeTransactions: Transaction[]  = [];
+	let expenseTransactions: Transaction[] = [];
 
 	let myCanvas: HTMLCanvasElement;
 	let labels: string[] = [];
@@ -19,10 +22,16 @@
 	// let pieLabels: string[] = [];
 	// let pieChart: Chart;
 
-	let mounted          = false;
-	let transactionsOpen = false;
+	let mounted     = false;
+	let incomeOpen  = false;
+	let expenseOpen = false;
 
-	$: if (transaction) createChart();
+	$: if (transaction) {
+		createChart();
+
+		incomeTransactions  = transaction.filter(tx => tx.type === 'INCOME');
+		expenseTransactions = transaction.filter(tx => tx.type === 'EXPENSE');
+	}
 	$: if (startDate && endDate && mounted) fetchData();
 
 	const fetchData = () => {
@@ -39,7 +48,15 @@
 			.catch(err => console.error(err));
 	};
 
-	onMount(() => mounted = true);
+	onMount(() => {
+		mounted = true;
+		onRefresh(fetchData);
+	});
+
+	onDestroy(() => {
+		mounted = false;
+		offRefresh(fetchData);
+	});
 
 	// Create chart with chart.js
 	const createChart = () => {
@@ -318,9 +335,6 @@
 
 		return netWorth;
 	};
-
-	// noinspection JSUnusedGlobalSymbols
-	export const refresh = fetchData;
 </script>
 
 {#if chart}
@@ -328,32 +342,53 @@
 {/if}
 
 <div class="canvas-wrapper">
-	<canvas id="myChart" width="400" height="400" bind:this={myCanvas}></canvas>
+	<canvas bind:this={myCanvas} height="400" id="myChart" width="400"></canvas>
 </div>
 
 <!--<div class="canvas-wrapper">-->
 <!--	<canvas id="pieChart" width="400" height="400" bind:this={pieCanvas}></canvas>-->
 <!--</div>-->
 
-<div
-	class="section-header"
-	role="button"
-	on:click={() => transactionsOpen = !transactionsOpen}
-	on:keypress={(e) => e.key === 'Enter' && (transactionsOpen = !transactionsOpen)}
-	aria-expanded={transactionsOpen}
-	tabindex="0"
->
-	Transaction Details
-	<span class="material-icons dropdown" class:rotated={transactionsOpen}>{'arrow_drop_down'}</span>
-</div>
-{#if transactionsOpen}
-	<div class="transactions" transition:slide>
-		{#each transaction as tx}
-			<p>{formatDate(tx.date)} - {formatCurrency(tx.amount)} - {tx.location} - {tx.category} - {tx.type} ({tx.owner}
-				)</p>
-		{/each}
+<div class="summary-grid">
+	<div
+		aria-expanded={incomeOpen}
+		class="section-header"
+		on:click={() => incomeOpen = !incomeOpen}
+		on:keypress={(e) => e.key === 'Enter' && (incomeOpen = !incomeOpen)}
+		role="button"
+		tabindex="0"
+	>
+		Income Details
+		<span class="material-icons dropdown" class:rotated={incomeOpen}>{'arrow_drop_down'}</span>
 	</div>
-{/if}
+	<div
+		aria-expanded={expenseOpen}
+		class="section-header"
+		on:click={() => expenseOpen = !expenseOpen}
+		on:keypress={(e) => e.key === 'Enter' && (expenseOpen = !expenseOpen)}
+		role="button"
+		tabindex="0"
+	>
+		Expense Details
+		<span class="material-icons dropdown" class:rotated={expenseOpen}>{'arrow_drop_down'}</span>
+	</div>
+	{#if incomeOpen}
+		<div class="transactions income" transition:slide>
+			{#each incomeTransactions as tx}
+				<p>{formatDate(tx.date)} - {formatCurrency(tx.amount)} - {tx.location} - {tx.category} - {tx.type} ({tx.owner}
+					)</p>
+			{/each}
+		</div>
+	{/if}
+	{#if expenseOpen}
+		<div class="transactions expenses" transition:slide>
+			{#each expenseTransactions as tx}
+				<p>{formatDate(tx.date)} - {formatCurrency(tx.amount)} - {tx.location} - {tx.category} - {tx.type} ({tx.owner}
+					)</p>
+			{/each}
+		</div>
+	{/if}
+</div>
 
 <style>
     .canvas-wrapper {
@@ -387,5 +422,17 @@
         padding: 1rem;
         border: 1px solid rgba(0, 0, 0, 0.1);
         border-radius: 0.5rem;
+    }
+
+    .summary-grid {
+        margin-top: 1rem;
+
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-gap: 1rem;
+    }
+
+    .expenses {
+        grid-column: 2;
     }
 </style>
