@@ -1,5 +1,5 @@
 <script lang="ts">
-	import Gas    from '$lib/Gas.svelte';
+	import Gas                    from '$lib/Gas.svelte';
 	import { endDate, startDate } from '$lib/date-service';
 </script>
 

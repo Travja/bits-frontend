@@ -15,7 +15,5 @@ export const formatCurrency = (amount: number) => {
 	}).format(amount);
 };
 
-// export const backedUrl = 'http://localhost:8080';
-export const backendUrl = 'https://bits.travja.dev';
-
+export const backendUrl = import.meta.env.VITE_BACKEND_URL;
 export const apiKey = import.meta.env.VITE_API_KEY;

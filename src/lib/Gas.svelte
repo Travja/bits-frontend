@@ -9,7 +9,8 @@
 	import { offRefresh, onRefresh }                          from '$lib/date-service';
 	import TransactionWidget                                  from '$lib/ui/TransactionWidget.svelte';
 	import { owner }                                          from '$lib/stores';
-	import { get, type Unsubscriber }                         from 'svelte/store';
+	import { get, type Unsubscriber } from 'svelte/store';
+	import { basicAuth }              from '$lib/credential';
 
 	export let startDate: string      = new Date().toISOString().split('T')[0];
 	export let endDate: string        = new Date().toISOString().split('T')[0];
@@ -30,7 +31,7 @@
 		fetch(`${backendUrl}/gas?start=${startDate}&end=${endDate}${get(owner) !== 'All' ? `&owner=${get(owner)}` : ''}`,
 			{
 				headers: {
-					'x-api-key': apiKey
+					'Authorization': 'Basic ' + get(basicAuth)
 				}
 			})
 			.then(res => res.json())

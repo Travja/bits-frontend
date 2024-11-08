@@ -1,12 +1,16 @@
 <script lang="ts">
-	import '../app.css';
+	import '../../app.css';
 	import { page } from '$app/stores';
 </script>
+
+<svelte:head>
+	<title>Bits</title>
+</svelte:head>
 
 <header>
 	<nav>
 		<a class:active={$page.url.pathname === '/'}
-			 href="/"
+			 href="/static"
 		>Home</a>
 		<a class:active={$page.url.pathname === '/gas'}
 			 href="/gas"
