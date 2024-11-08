@@ -1,15 +1,19 @@
 <script lang="ts">
-	import type { Transaction }                                            from '$lib/transaction';
-	import { Chart, type Point, type TooltipItem }                         from 'chart.js/auto';
-	import moment                                                          from 'moment/moment';
-	import { onDestroy, onMount }                                          from 'svelte';
-	import { apiKey, backendUrl, formatCurrency, formatDate, formatMonth } from '$lib/lib';
-	import CashSummary                                                     from '$lib/CashSummary.svelte';
-	import { slide }                 from 'svelte/transition';
-	import { offRefresh, onRefresh } from '$lib/date-service';
+	import type { Transaction }                                from '$lib/transaction';
+	import { Chart, type Point, type TooltipItem }             from 'chart.js/auto';
+	import moment                                              from 'moment/moment';
+	import { onDestroy, onMount }                              from 'svelte';
+	import { apiKey, backendUrl, formatCurrency, formatMonth } from '$lib/lib';
+	import CashSummary                                         from '$lib/CashSummary.svelte';
+	import { slide }                                           from 'svelte/transition';
+	import { offRefresh, onRefresh }                           from '$lib/date-service';
+	import TransactionWidget                                   from '$lib/ui/TransactionWidget.svelte';
+	import { owner }                                           from './stores';
+	import { get, type Unsubscriber }                          from 'svelte/store';
 
-	export let startDate: string           = new Date().toISOString().split('T')[0];
-	export let endDate: string             = new Date().toISOString().split('T')[0];
+	export let startDate: string = new Date().toISOString().split('T')[0];
+	export let endDate: string   = new Date().toISOString().split('T')[0];
+
 	let transaction: Transaction[]         = [];
 	let incomeTransactions: Transaction[]  = [];
 	let expenseTransactions: Transaction[] = [];
@@ -37,7 +41,7 @@
 	const fetchData = () => {
 		if (!mounted) return;
 
-		fetch(`${backendUrl}/transactions?start=${startDate}&end=${endDate}`,
+		fetch(`${backendUrl}/transactions?start=${startDate}&end=${endDate}${get(owner) !== 'All' ? `&owner=${get(owner)}` : ''}`,
 			{
 				headers: {
 					'x-api-key': apiKey
@@ -48,13 +52,16 @@
 			.catch(err => console.error(err));
 	};
 
+	let ownerSub: Unsubscriber;
 	onMount(() => {
-		mounted = true;
+		mounted  = true;
+		ownerSub = owner.subscribe(fetchData);
 		onRefresh(fetchData);
 	});
 
 	onDestroy(() => {
 		mounted = false;
+		ownerSub?.();
 		offRefresh(fetchData);
 	});
 
@@ -337,9 +344,7 @@
 	};
 </script>
 
-{#if chart}
-	<CashSummary {transaction} {labels} />
-{/if}
+<CashSummary {labels} {transaction} />
 
 <div class="canvas-wrapper">
 	<canvas bind:this={myCanvas} height="400" id="myChart" width="400"></canvas>
@@ -358,7 +363,8 @@
 		role="button"
 		tabindex="0"
 	>
-		Income Details
+		Income (Total: {formatCurrency(incomeTransactions.reduce((acc, tx) => acc + tx.amount, 0))})
+		({incomeTransactions.length})
 		<span class="material-icons dropdown" class:rotated={incomeOpen}>{'arrow_drop_down'}</span>
 	</div>
 	<div
@@ -369,22 +375,21 @@
 		role="button"
 		tabindex="0"
 	>
-		Expense Details
+		Expenses (Total: {formatCurrency(expenseTransactions.reduce((acc, tx) => acc + tx.amount, 0))})
+		({expenseTransactions.length})
 		<span class="material-icons dropdown" class:rotated={expenseOpen}>{'arrow_drop_down'}</span>
 	</div>
 	{#if incomeOpen}
 		<div class="transactions income" transition:slide>
 			{#each incomeTransactions as tx}
-				<p>{formatDate(tx.date)} - {formatCurrency(tx.amount)} - {tx.location} - {tx.category} - {tx.type} ({tx.owner}
-					)</p>
+				<TransactionWidget transaction={tx} />
 			{/each}
 		</div>
 	{/if}
 	{#if expenseOpen}
 		<div class="transactions expenses" transition:slide>
 			{#each expenseTransactions as tx}
-				<p>{formatDate(tx.date)} - {formatCurrency(tx.amount)} - {tx.location} - {tx.category} - {tx.type} ({tx.owner}
-					)</p>
+				<TransactionWidget transaction={tx} />
 			{/each}
 		</div>
 	{/if}
@@ -422,6 +427,8 @@
         padding: 1rem;
         border: 1px solid rgba(0, 0, 0, 0.1);
         border-radius: 0.5rem;
+
+        align-self: flex-start;
     }
 
     .summary-grid {

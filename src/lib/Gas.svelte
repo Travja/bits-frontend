@@ -5,8 +5,11 @@
 	import { apiKey, backendUrl, formatCurrency, formatDate } from '$lib/lib';
 	import type { GasTransaction }                            from '$lib/transaction';
 	import { slide }                                          from 'svelte/transition';
-	import GasSummary                from '$lib/GasSummary.svelte';
-	import { offRefresh, onRefresh } from '$lib/date-service';
+	import GasSummary                                         from '$lib/GasSummary.svelte';
+	import { offRefresh, onRefresh }                          from '$lib/date-service';
+	import TransactionWidget                                  from '$lib/ui/TransactionWidget.svelte';
+	import { owner }                                          from '$lib/stores';
+	import { get, type Unsubscriber }                         from 'svelte/store';
 
 	export let startDate: string      = new Date().toISOString().split('T')[0];
 	export let endDate: string        = new Date().toISOString().split('T')[0];
@@ -14,8 +17,6 @@
 	let transaction: GasTransaction[] = [];
 	let labels: string[]              = [];
 	let chart: Chart;
-
-	let owner = 'Travis';
 
 	let mounted          = false;
 	let transactionsOpen = false;
@@ -26,24 +27,27 @@
 	const fetchData = () => {
 		if (!mounted) return;
 
-		fetch(`${backendUrl}/gas?start=${startDate}&end=${endDate}&owner=${owner}`,
+		fetch(`${backendUrl}/gas?start=${startDate}&end=${endDate}${get(owner) !== 'All' ? `&owner=${get(owner)}` : ''}`,
 			{
 				headers: {
 					'x-api-key': apiKey
 				}
 			})
 			.then(res => res.json())
-			.then((data: GasTransaction[]) => transaction = data.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()))
+			.then((data: GasTransaction[]) => transaction = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
 			.catch(err => console.error(err));
 	};
 
+	let ownerSub: Unsubscriber;
 	onMount(() => {
-		mounted = true;
+		mounted  = true;
+		ownerSub = owner.subscribe(fetchData);
 		onRefresh(fetchData);
 	});
 
 	onDestroy(() => {
 		mounted = false;
+		ownerSub?.();
 		offRefresh(fetchData);
 	});
 
@@ -185,25 +189,18 @@
 	const getData = (func: (tx: GasTransaction) => { x: string | number, y: number }) => transaction.map(func);
 </script>
 
-{#if chart}
-	<GasSummary {transaction} />
-{/if}
-
-<select bind:value={owner}>
-	<option value="Travis">Travis</option>
-	<option value="Dorothy">Dorothy</option>
-</select>
+<GasSummary {transaction} />
 
 <div class="canvasWrapper">
-	<canvas id="myChart" width="400" height="400" bind:this={myCanvas}></canvas>
+	<canvas bind:this={myCanvas} height="400" id="myChart" width="400"></canvas>
 </div>
 
 <div
+	aria-expanded={transactionsOpen}
 	class="section-header"
-	role="button"
 	on:click={() => transactionsOpen = !transactionsOpen}
 	on:keypress={(e) => e.key === 'Enter' && (transactionsOpen = !transactionsOpen)}
-	aria-expanded={transactionsOpen}
+	role="button"
 	tabindex="0"
 >
 	Transaction Details
@@ -212,7 +209,7 @@
 {#if transactionsOpen}
 	<div class="transactions" transition:slide>
 		{#each transaction as tx}
-			<p>{formatDate(tx.date)} - {formatCurrency(tx.amount)} - {tx.location} - {tx.category} - {tx.type}</p>
+			<TransactionWidget transaction={tx} />
 		{/each}
 	</div>
 {/if}

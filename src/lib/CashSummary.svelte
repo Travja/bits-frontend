@@ -20,23 +20,39 @@
 <div class="summary">
 	<div class="card" class:negative={grossIncome < 0}>
 		<div class="header">Gross Income</div>
-		<div class="value">{formatCurrency(grossIncome)}</div>
-		<div class="monthly">{formatCurrency(grossIncome / labels.length)}/mo</div>
+		{#if !grossIncome}
+			<div class="value">...</div>
+		{:else}
+			<div class="value">{formatCurrency(grossIncome)}</div>
+			<div class="monthly">{formatCurrency(grossIncome / labels.length)}/mo</div>
+		{/if}
 	</div>
 	<div class="card" class:negative={grossExpense < 0}>
 		<div class="header">Gross Expense</div>
-		<div class="value">{formatCurrency(grossExpense)}</div>
-		<div class="monthly">{formatCurrency(grossExpense / labels.length)}/mo</div>
+		{#if !grossExpense}
+			<div class="value">...</div>
+		{:else}
+			<div class="value">{formatCurrency(grossExpense)}</div>
+			<div class="monthly">{formatCurrency(grossExpense / labels.length)}/mo</div>
+		{/if}
 	</div>
 	<div class="card" class:negative={tithing < 0}>
 		<div class="header">Tithing</div>
-		<div class="value">{formatCurrency(tithing)}</div>
-		<div class="monthly">{formatCurrency(tithing / labels.length)}/mo</div>
+		{#if !tithing}
+			<div class="value">...</div>
+		{:else}
+			<div class="value">{formatCurrency(tithing)}</div>
+			<div class="monthly">{formatCurrency(tithing / labels.length)}/mo</div>
+		{/if}
 	</div>
 	<div class="card" class:negative={netIncome < 0}>
 		<div class="header">Net Income</div>
-		<div class="value">{formatCurrency(netIncome)}</div>
-		<div class="monthly">{formatCurrency(netIncome / labels.length)}/mo</div>
+		{#if !netIncome}
+			<div class="value">...</div>
+		{:else}
+			<div class="value">{formatCurrency(netIncome)}</div>
+			<div class="monthly">{formatCurrency(netIncome / labels.length)}/mo</div>
+		{/if}
 	</div>
 </div>
 
@@ -50,7 +66,7 @@
     .summary {
         display: flex;
         flex-wrap: wrap;
-				gap: 0.5rem;
+        gap: 0.5rem;
         justify-content: center;
         margin: 1rem auto 2rem;
         width: 80%;
@@ -76,10 +92,10 @@
         margin: 0.4rem auto;
     }
 
-		.monthly {
-				font-size: 0.9rem;
-				color: gray;
-		}
+    .monthly {
+        font-size: 0.9rem;
+        color: gray;
+    }
 
     .card.negative {
         background: rgba(255, 0, 0, 0.1);

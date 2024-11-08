@@ -21,23 +21,23 @@
 <div class="summary">
 	<div class="card" class:negative={avgCost > 40}>
 		<div class="header">Avg Cost</div>
-		<div class="value">{formatCurrency(avgCost)}</div>
+		<div class="value">{avgCost ? formatCurrency(avgCost) : '...'}</div>
 	</div>
 	<div class="card" class:negative={avgPrice > 4}>
 		<div class="header">Avg Price</div>
-		<div class="value">{formatCurrency(avgPrice)}</div>
+		<div class="value">{avgPrice ? formatCurrency(avgPrice) : '...'}</div>
 	</div>
 	<div class="card" class:negative={avgCostPerMile > 0.2}>
 		<div class="header">Avg Cost/Mile</div>
-		<div class="value">{formatCurrency(avgCostPerMile)}</div>
+		<div class="value">{avgCostPerMile ? formatCurrency(avgCostPerMile) : '...'}</div>
 	</div>
 	<div class="card">
 		<div class="header">Avg Distance</div>
-		<div class="value">{avgDistance} mi</div>
+		<div class="value">{avgDistance ? avgDistance + ' mi' : '...'}</div>
 	</div>
 	<div class="card" class:negative={avgMpg < 18}>
 		<div class="header">Avg MPG</div>
-		<div class="value">{avgMpg}</div>
+		<div class="value">{avgMpg ? avgMpg : '...'}</div>
 	</div>
 </div>
 
