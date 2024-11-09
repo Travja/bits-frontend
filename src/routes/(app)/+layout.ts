@@ -2,6 +2,8 @@ import { credential } from '$lib/credential';
 import { get }        from 'svelte/store';
 import { redirect }   from '@sveltejs/kit';
 
+export const ssr = false;
+
 export function load() {
 	// Check if we have credentials, if not, redirect to login page
 	const credentials = get(credential);

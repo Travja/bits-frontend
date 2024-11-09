@@ -1,16 +1,17 @@
 <script lang="ts">
-	import type { Transaction }                                from '$lib/transaction';
-	import { Chart, type Point, type TooltipItem }             from 'chart.js/auto';
-	import moment                                              from 'moment/moment';
-	import { onDestroy, onMount }                              from 'svelte';
-	import { apiKey, backendUrl, formatCurrency, formatMonth } from '$lib/lib';
-	import CashSummary                                         from '$lib/CashSummary.svelte';
-	import { slide }                                           from 'svelte/transition';
-	import { offRefresh, onRefresh }                           from '$lib/date-service';
-	import TransactionWidget                                   from '$lib/ui/TransactionWidget.svelte';
-	import { owner }                                           from './stores';
-	import { get, type Unsubscriber } from 'svelte/store';
-	import { basicAuth }              from '$lib/credential';
+	import type { Transaction }                        from '$lib/transaction';
+	import { Chart, type Point, type TooltipItem }     from 'chart.js/auto';
+	import moment                                      from 'moment/moment';
+	import { onDestroy, onMount }                      from 'svelte';
+	import { backendUrl, formatCurrency, formatMonth } from '$lib/lib';
+	import CashSummary                                 from '$lib/CashSummary.svelte';
+	import { slide }                                   from 'svelte/transition';
+	import { offRefresh, onRefresh }                   from '$lib/date-service';
+	import TransactionWidget                           from '$lib/ui/TransactionWidget.svelte';
+	import { owner }                                   from './stores';
+	import { get, type Unsubscriber }                  from 'svelte/store';
+	import { basicAuth }                               from '$lib/credential';
+	import Chip                                        from '$lib/ui/Chip.svelte';
 
 	export let startDate: string = new Date().toISOString().split('T')[0];
 	export let endDate: string   = new Date().toISOString().split('T')[0];
@@ -364,8 +365,9 @@
 		role="button"
 		tabindex="0"
 	>
-		Income (Total: {formatCurrency(incomeTransactions.reduce((acc, tx) => acc + tx.amount, 0))})
-		({incomeTransactions.length})
+		Income
+		<Chip color="green">{formatCurrency(incomeTransactions.reduce((acc, tx) => acc + tx.amount, 0))}</Chip>
+		<Chip size="0.5em">{incomeTransactions.length}</Chip>
 		<span class="material-icons dropdown" class:rotated={incomeOpen}>{'arrow_drop_down'}</span>
 	</div>
 	<div
@@ -376,8 +378,9 @@
 		role="button"
 		tabindex="0"
 	>
-		Expenses (Total: {formatCurrency(expenseTransactions.reduce((acc, tx) => acc + tx.amount, 0))})
-		({expenseTransactions.length})
+		Expenses
+		<Chip color="#f44">{formatCurrency(expenseTransactions.reduce((acc, tx) => acc + tx.amount, 0))}</Chip>
+		<Chip size="0.5em">{expenseTransactions.length}</Chip>
 		<span class="material-icons dropdown" class:rotated={expenseOpen}>{'arrow_drop_down'}</span>
 	</div>
 	{#if incomeOpen}
@@ -411,6 +414,7 @@
         font-size: 1.5rem;
         display: flex;
         align-items: center;
+        justify-content: center;
         cursor: pointer;
     }
 
@@ -424,7 +428,6 @@
     }
 
     .transactions {
-        margin: 1rem;
         padding: 1rem;
         border: 1px solid rgba(0, 0, 0, 0.1);
         border-radius: 0.5rem;
@@ -437,7 +440,7 @@
 
         display: grid;
         grid-template-columns: 1fr 1fr;
-        grid-gap: 1rem;
+        grid-column-gap: 1em;
     }
 
     .expenses {

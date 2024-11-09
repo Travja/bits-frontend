@@ -10,7 +10,7 @@
 <header>
 	<nav>
 		<a class:active={$page.url.pathname === '/'}
-			 href="/static"
+			 href="/"
 		>Home</a>
 		<a class:active={$page.url.pathname === '/gas'}
 			 href="/gas"

@@ -40,7 +40,7 @@
 	{#if error}
 		<p class="error">{error}</p>
 	{/if}
-	<button on:click={login}>Login</button>
+	<button>Login</button>
 </form>
 
 <style>
