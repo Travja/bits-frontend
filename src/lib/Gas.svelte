@@ -1,29 +1,34 @@
 <script lang="ts">
-	import { Chart, type Point, type TooltipItem }            from 'chart.js/auto';
-	import moment                                             from 'moment/moment';
-	import { onDestroy, onMount }                             from 'svelte';
-	import { apiKey, backendUrl, formatCurrency, formatDate } from '$lib/lib';
-	import type { GasTransaction }                            from '$lib/transaction';
-	import { slide }                                          from 'svelte/transition';
-	import GasSummary                                         from '$lib/GasSummary.svelte';
-	import { offRefresh, onRefresh }                          from '$lib/date-service';
-	import TransactionWidget                                  from '$lib/ui/TransactionWidget.svelte';
-	import { owner }                                          from '$lib/stores';
-	import { get, type Unsubscriber } from 'svelte/store';
-	import { basicAuth }              from '$lib/credential';
+	import { Chart, type Point, type TooltipItem }    from 'chart.js/auto';
+	import moment                                     from 'moment/moment';
+	import { onDestroy, onMount }                     from 'svelte';
+	import { backendUrl, formatCurrency, formatDate } from '$lib/lib';
+	import type { GasTransaction }                    from '$lib/transaction';
+	import { slide }                                  from 'svelte/transition';
+	import GasSummary                                 from '$lib/GasSummary.svelte';
+	import { offRefresh, onRefresh }                  from '$lib/date-service';
+	import TransactionWidget                          from '$lib/ui/TransactionWidget.svelte';
+	import { owner }                                  from '$lib/stores';
+	import { get, type Unsubscriber }                 from 'svelte/store';
+	import { basicAuth }                              from '$lib/credential';
 
-	export let startDate: string      = new Date().toISOString().split('T')[0];
-	export let endDate: string        = new Date().toISOString().split('T')[0];
-	let myCanvas: HTMLCanvasElement;
-	let transaction: GasTransaction[] = [];
+	interface Props {
+		startDate?: string;
+		endDate?: string;
+	}
+
+	let {
+				startDate = $bindable(new Date().toISOString().split('T')[0]),
+				endDate   = $bindable(new Date().toISOString().split('T')[0])
+			}: Props                      = $props();
+	let myCanvas: HTMLCanvasElement   = $state()!;
+	let transaction: GasTransaction[] = $state([]);
 	let labels: string[]              = [];
 	let chart: Chart;
 
-	let mounted          = false;
-	let transactionsOpen = false;
+	let mounted          = $state(false);
+	let transactionsOpen = $state(false);
 
-	$: if (transaction) createChart();
-	$: if (startDate && endDate && mounted) fetchData();
 
 	const fetchData = () => {
 		if (!mounted) return;
@@ -35,7 +40,10 @@
 				}
 			})
 			.then(res => res.json())
-			.then((data: GasTransaction[]) => transaction = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
+			.then((data: GasTransaction[]) => {
+				transaction = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+				createChart();
+			})
 			.catch(err => console.error(err));
 	};
 
@@ -188,6 +196,10 @@
 	};
 
 	const getData = (func: (tx: GasTransaction) => { x: string | number, y: number }) => transaction.map(func);
+
+	$effect.pre(() => {
+		if (startDate && endDate && mounted) fetchData();
+	});
 </script>
 
 <GasSummary {transaction} />
@@ -199,8 +211,8 @@
 <div
 	aria-expanded={transactionsOpen}
 	class="section-header"
-	on:click={() => transactionsOpen = !transactionsOpen}
-	on:keypress={(e) => e.key === 'Enter' && (transactionsOpen = !transactionsOpen)}
+	onclick={() => transactionsOpen = !transactionsOpen}
+	onkeydown={(e) => e.key === 'Enter' && (transactionsOpen = !transactionsOpen)}
 	role="button"
 	tabindex="0"
 >

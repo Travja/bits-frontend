@@ -2,7 +2,11 @@
 	import type { Transaction }           from '$lib/transaction';
 	import { formatCurrency, formatDate } from '$lib/lib.js';
 
-	export let transaction: Transaction;
+    interface Props {
+        transaction: Transaction;
+    }
+
+    let { transaction }: Props = $props();
 </script>
 
 <div class="transaction" class:expense={transaction.type === 'EXPENSE'} class:income={transaction.type === 'INCOME'}>

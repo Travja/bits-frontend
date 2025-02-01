@@ -13,32 +13,31 @@
 	import { basicAuth }                               from '$lib/credential';
 	import Chip                                        from '$lib/ui/Chip.svelte';
 
-	export let startDate: string = new Date().toISOString().split('T')[0];
-	export let endDate: string   = new Date().toISOString().split('T')[0];
+	interface Props {
+		startDate?: string;
+		endDate?: string;
+	}
 
-	let transaction: Transaction[]         = [];
-	let incomeTransactions: Transaction[]  = [];
-	let expenseTransactions: Transaction[] = [];
+	let {
+				startDate = $bindable(new Date().toISOString().split('T')[0]),
+				endDate   = $bindable(new Date().toISOString().split('T')[0])
+			}: Props = $props();
 
-	let myCanvas: HTMLCanvasElement;
-	let labels: string[] = [];
+	let transaction: Transaction[]         = $state([]);
+	let incomeTransactions: Transaction[]  = $state([]);
+	let expenseTransactions: Transaction[] = $state([]);
+
+	let myCanvas: HTMLCanvasElement = $state()!;
+	let labels: string[]            = $state([]);
 	let chart: Chart;
 
 	// let pieCanvas: HTMLCanvasElement;
 	// let pieLabels: string[] = [];
 	// let pieChart: Chart;
 
-	let mounted     = false;
-	let incomeOpen  = false;
-	let expenseOpen = false;
-
-	$: if (transaction) {
-		createChart();
-
-		incomeTransactions  = transaction.filter(tx => tx.type === 'INCOME');
-		expenseTransactions = transaction.filter(tx => tx.type === 'EXPENSE');
-	}
-	$: if (startDate && endDate && mounted) fetchData();
+	let mounted     = $state(false);
+	let incomeOpen  = $state(false);
+	let expenseOpen = $state(false);
 
 	const fetchData = () => {
 		if (!mounted) return;
@@ -50,7 +49,14 @@
 				}
 			})
 			.then(res => res.json())
-			.then((data: Transaction[]) => transaction = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()))
+			.then((data: Transaction[]) => {
+				transaction = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+				createChart();
+
+				incomeTransactions  = transaction.filter(tx => tx.type === 'INCOME');
+				expenseTransactions = transaction.filter(tx => tx.type === 'EXPENSE');
+			})
 			.catch(err => console.error(err));
 	};
 
@@ -335,15 +341,20 @@
 		// Map income and expense data into net worth, adding the previous month's net worth to the current month's income
 		let netWorth: Point[] = [];
 
+		let index = 0;
 		labels.forEach(label => {
 			const income  = incomeDataGroup[label] || 0;
 			const expense = expenseDataGroup[label] || 0;
 			const prev    = netWorth.length > 0 ? netWorth[netWorth.length - 1].y : 4394.66; // 4k is the starting point for the year
-			netWorth.push({ x: label, y: prev + income - expense });
+			netWorth.push({ x: index++, y: prev + income - expense });
 		});
 
 		return netWorth;
 	};
+
+	$effect.pre(() => {
+		if (startDate && endDate && mounted) fetchData();
+	});
 </script>
 
 <CashSummary {labels} {transaction} />
@@ -360,8 +371,8 @@
 	<div
 		aria-expanded={incomeOpen}
 		class="section-header"
-		on:click={() => incomeOpen = !incomeOpen}
-		on:keypress={(e) => e.key === 'Enter' && (incomeOpen = !incomeOpen)}
+		onclick={() => incomeOpen = !incomeOpen}
+		onkeydown={(e) => e.key === 'Enter' && (incomeOpen = !incomeOpen)}
 		role="button"
 		tabindex="0"
 	>
@@ -373,8 +384,8 @@
 	<div
 		aria-expanded={expenseOpen}
 		class="section-header"
-		on:click={() => expenseOpen = !expenseOpen}
-		on:keypress={(e) => e.key === 'Enter' && (expenseOpen = !expenseOpen)}
+		onclick={() => expenseOpen = !expenseOpen}
+		onkeypress={(e) => e.key === 'Enter' && (expenseOpen = !expenseOpen)}
 		role="button"
 		tabindex="0"
 	>

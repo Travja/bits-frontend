@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { endDate, refresh, startDate } from '$lib/date-service';
 	import { owner }                       from '$lib/stores';
+	interface Props {
+		children?: import('svelte').Snippet;
+	}
+
+	let { children }: Props = $props();
 </script>
 
 <span>
@@ -8,7 +13,7 @@
 	to
 	<input bind:value={$endDate} type="date" />
 </span>
-<button on:click={refresh}>Refresh</button>
+<button onclick={refresh}>Refresh</button>
 
 <select bind:value={$owner}>
 	<option value="All">All</option>
@@ -16,7 +21,7 @@
 	<option value="Dorothy">Dorothy</option>
 </select>
 
-<slot></slot>
+{@render children?.()}
 
 <style>
     button {

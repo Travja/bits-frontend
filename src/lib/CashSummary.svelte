@@ -2,18 +2,22 @@
 	import { formatCurrency }   from '$lib/lib.js';
 	import type { Transaction } from '$lib/transaction';
 
-	export let transaction: Transaction[] = [];
-	export let labels: string[]           = [];
+	interface Props {
+		transaction?: Transaction[];
+		labels?: string[];
+	}
 
-	let tithing: number;
-	let grossIncome: number;
-	let grossExpense: number;
-	let netIncome: number;
+	let { transaction = [], labels = [] }: Props = $props();
 
-	$: tithing = grossIncome * 0.1;
-	$: grossIncome = transaction.filter(tx => tx.type === 'INCOME').reduce((acc, tx) => acc + tx.amount, 0);
-	$: grossExpense = transaction.filter(tx => tx.type === 'EXPENSE').reduce((acc, tx) => acc + tx.amount, 0);
-	$: netIncome = grossIncome - tithing - grossExpense;
+	let tithing: number = $derived(grossIncome * 0.1);
+	let grossIncome: number = $derived(transaction.filter(tx => tx.type === 'INCOME').reduce((acc, tx) => acc + tx.amount, 0));
+	let grossExpense: number = $derived(transaction.filter(tx => tx.type === 'EXPENSE').reduce((acc, tx) => acc + tx.amount, 0));
+	let netIncome: number = $derived(grossIncome - tithing - grossExpense);
+
+	
+	
+	
+	
 </script>
 
 <h2 id="summary-header">Summary</h2>

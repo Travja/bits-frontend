@@ -1,10 +1,15 @@
 <script lang="ts">
-	export let color = 'gray';
-	export let size  = '0.85em';
+    interface Props {
+        color?: string;
+        size?: string;
+        children?: import('svelte').Snippet;
+    }
+
+    let { color = 'gray', size = '0.85em', children }: Props = $props();
 </script>
 
 <div class="chip" style:--chip-bg="{color}" style:--font-size="{size}">
-	<slot></slot>
+	{@render children?.()}
 </div>
 
 <style>

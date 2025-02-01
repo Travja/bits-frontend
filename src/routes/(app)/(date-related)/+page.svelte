@@ -4,7 +4,3 @@
 </script>
 
 <CashFlow bind:endDate={$endDate} bind:startDate={$startDate} />
-
-<style>
-
-</style>

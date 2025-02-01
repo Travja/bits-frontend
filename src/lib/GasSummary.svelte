@@ -2,19 +2,23 @@
 	import { formatCurrency }      from '$lib/lib.js';
 	import type { GasTransaction } from '$lib/transaction';
 
-	export let transaction: GasTransaction[] = [];
+	interface Props {
+		transaction?: GasTransaction[];
+	}
 
-	let avgCost: number;
-	let avgPrice: number;
-	let avgDistance: number;
-	let avgMpg: number;
-	let avgCostPerMile: number;
+	let { transaction = [] }: Props = $props();
 
-	$: avgCost = transaction.reduce((acc, tx) => acc + tx.amount, 0) / transaction.length;
-	$: avgPrice = transaction.reduce((acc, tx) => acc + tx.costPerGallon, 0) / transaction.length;
-	$: avgDistance = Math.round(transaction.reduce((acc, tx) => acc + tx.miles, 0) / transaction.length * 100) / 100;
-	$: avgMpg = Math.round(transaction.reduce((acc, tx) => acc + tx.mpg, 0) / transaction.length * 100) / 100;
-	$: avgCostPerMile = transaction.reduce((acc, tx) => acc + tx.costPerMile, 0) / transaction.length;
+	let avgCost: number = $derived(transaction.reduce((acc, tx) => acc + tx.amount, 0) / transaction.length);
+	let avgPrice: number = $derived(transaction.reduce((acc, tx) => acc + tx.costPerGallon, 0) / transaction.length);
+	let avgDistance: number = $derived(Math.round(transaction.reduce((acc, tx) => acc + tx.miles, 0) / transaction.length * 100) / 100);
+	let avgMpg: number = $derived(Math.round(transaction.reduce((acc, tx) => acc + tx.mpg, 0) / transaction.length * 100) / 100);
+	let avgCostPerMile: number = $derived(transaction.reduce((acc, tx) => acc + tx.costPerMile, 0) / transaction.length);
+
+	
+	
+	
+	
+	
 </script>
 
 <h2 id="summary-header">Gas Summary</h2>

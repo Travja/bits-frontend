@@ -1,13 +1,15 @@
 <script lang="ts">
+	import { preventDefault } from 'svelte/legacy';
+
 	import '../../app.css';
 	import { backendUrl }    from '$lib/lib';
 	import { goto }          from '$app/navigation';
 	import { setCredential } from '$lib/credential';
 
-	let username = '';
-	let password = '';
+	let username = $state('');
+	let password = $state('');
 
-	let error = '';
+	let error = $state('');
 
 	const login = () => {
 		fetch(backendUrl + '/credentials/login', {
@@ -34,7 +36,7 @@
 </script>
 
 <h1>Login</h1>
-<form on:submit|preventDefault={login}>
+<form onsubmit={preventDefault(login)}>
 	<input bind:value={username} id="username" placeholder="Username" type="text" />
 	<input bind:value={password} id="password" placeholder="Password" type="password" />
 	{#if error}
