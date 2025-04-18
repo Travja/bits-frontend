@@ -316,37 +316,28 @@
 	};
 
 	const getNetWorthData = () => {
-		const incomeData      = transaction.filter(tx => tx.type === 'INCOME');
-		const incomeDataGroup = incomeData.reduce((acc, tx) => {
-			const date = formatMonth(tx.date);
-			if (acc[date]) {
-				acc[date] += tx.amount;
-			} else {
-				acc[date] = tx.amount;
-			}
-			return acc;
-		}, {} as Record<string, number>);
-
-		const expenseData      = transaction.filter(tx => tx.type === 'EXPENSE');
-		const expenseDataGroup = expenseData.reduce((acc, tx) => {
-			const date = formatMonth(tx.date);
-			if (acc[date]) {
-				acc[date] += tx.amount;
-			} else {
-				acc[date] = tx.amount;
-			}
-			return acc;
-		}, {} as Record<string, number>);
+		// get the last entry for each month
+		const transactionData = transaction.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+			.filter(tx => tx.type === 'INCOME' || tx.type === 'EXPENSE')
+			.reduce((acc, tx) => {
+				const date = formatMonth(tx.date);
+				acc[date]  = tx;
+				return acc;
+			}, {} as Record<string, Transaction>);
 
 		// Map income and expense data into net worth, adding the previous month's net worth to the current month's income
 		let netWorth: Point[] = [];
 
 		let index = 0;
 		labels.forEach(label => {
-			const income  = incomeDataGroup[label] || 0;
-			const expense = expenseDataGroup[label] || 0;
-			const prev    = netWorth.length > 0 ? netWorth[netWorth.length - 1].y : 4394.66; // 4k is the starting point for the year
-			netWorth.push({ x: index++, y: prev + income - expense });
+			let net = transactionData[label] ? transactionData[label].net : 0;
+			if (net == 0) {
+				// Use the previous month's net worth
+				if (netWorth.length > 0) {
+					net = netWorth[netWorth.length - 1].y;
+				}
+			}
+			netWorth.push({ x: index++, y: net });
 		});
 
 		return netWorth;
