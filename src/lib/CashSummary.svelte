@@ -13,11 +13,6 @@
 	let grossIncome: number = $derived(transaction.filter(tx => tx.type === 'INCOME').reduce((acc, tx) => acc + tx.amount, 0));
 	let grossExpense: number = $derived(transaction.filter(tx => tx.type === 'EXPENSE').reduce((acc, tx) => acc + tx.amount, 0));
 	let netIncome: number = $derived(grossIncome - tithing - grossExpense);
-
-	
-	
-	
-	
 </script>
 
 <h2 id="summary-header">Summary</h2>

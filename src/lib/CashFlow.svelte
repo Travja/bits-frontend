@@ -51,11 +51,10 @@
 			.then(res => res.json())
 			.then((data: Transaction[]) => {
 				transaction = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
-
-				createChart();
-
 				incomeTransactions  = transaction.filter(tx => tx.type === 'INCOME');
 				expenseTransactions = transaction.filter(tx => tx.type === 'EXPENSE');
+
+				createChart();
 			})
 			.catch(err => console.error(err));
 	};
