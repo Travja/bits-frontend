@@ -5,6 +5,7 @@
 	import { backendUrl }    from '$lib/lib';
 	import { goto }          from '$app/navigation';
 	import { setCredential } from '$lib/credential';
+	import { resolve }        from '$app/paths';
 
 	let username = $state('');
 	let password = $state('');
@@ -22,7 +23,7 @@
 				console.log('Login successful');
 				// Store it in the credential store
 				setCredential(username, password);
-				goto('/');
+				goto(resolve('/'));
 			} else {
 				console.error('Login failed');
 				error = 'Login failed';

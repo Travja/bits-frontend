@@ -1,5 +1,6 @@
 import { derived, type Readable, type Writable, writable } from 'svelte/store';
 import { goto }                                            from '$app/navigation';
+import { resolve }                                         from '$app/paths';
 
 export const credential: Writable<{ username?: string, password?: string }> = writable({
 	username: undefined,
@@ -17,5 +18,5 @@ export const basicAuth: Readable<string> = derived(credential, $credential => {
 
 export const logout = () => {
 	credential.set({ username: undefined, password: undefined });
-	goto('/login').then();
+	goto(resolve('/login')).then();
 };

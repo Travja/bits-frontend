@@ -1,6 +1,7 @@
 <script lang="ts">
 	import '../../app.css';
 	import { page } from '$app/stores';
+	import { resolve } from '$app/paths';
     interface Props {
         children?: import('svelte').Snippet;
     }
@@ -14,11 +15,11 @@
 
 <header>
 	<nav>
-		<a class:active={$page.url.pathname === '/'}
-			 href="/"
+		<a class:active={$page.url.pathname === resolve('/')}
+			 href={resolve("/")}
 		>Home</a>
-		<a class:active={$page.url.pathname === '/gas'}
-			 href="/gas"
+		<a class:active={$page.url.pathname === resolve('/gas')}
+			 href={resolve("/gas")}
 		>Gas</a>
 	</nav>
 </header>

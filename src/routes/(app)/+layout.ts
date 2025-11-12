@@ -1,6 +1,7 @@
 import { credential } from '$lib/credential';
 import { get }        from 'svelte/store';
 import { redirect }   from '@sveltejs/kit';
+import { resolve }    from '$app/paths';
 
 export const ssr = false;
 
@@ -9,6 +10,6 @@ export function load() {
 	const credentials = get(credential);
 	if (!credentials.username || !credentials.password) {
 		console.log('No credentials, redirecting to login page');
-		return redirect(307, '/login');
+		return redirect(307, resolve('/login'));
 	}
 }
