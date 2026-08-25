@@ -8,38 +8,51 @@
 
 	let { transaction = [] }: Props = $props();
 
-	let avgCost: number = $derived(transaction.reduce((acc, tx) => acc + tx.amount, 0) / transaction.length);
-	let avgPrice: number = $derived(transaction.reduce((acc, tx) => acc + tx.costPerGallon, 0) / transaction.length);
-	let avgDistance: number = $derived(Math.round(transaction.reduce((acc, tx) => acc + tx.miles, 0) / transaction.length * 100) / 100);
-	let avgMpg: number = $derived(Math.round(transaction.reduce((acc, tx) => acc + tx.mpg, 0) / transaction.length * 100) / 100);
-	let avgCostPerMile: number = $derived(transaction.reduce((acc, tx) => acc + tx.costPerMile, 0) / transaction.length);
+	// A handful of fill-ups are manual entries with no recorded mileage — miles/mpg/costPerMile/
+	// costPerGallon come back null for those. Average only over transactions that actually have
+	// a given field, rather than letting one null poison the whole reduce into NaN.
+	const average = (values: (number | null | undefined)[]): number => {
+		const present = values.filter((v): v is number => v != null);
+		return present.length ? present.reduce((acc, v) => acc + v, 0) / present.length : 0;
+	};
 
-	
-	
-	
-	
-	
+	let avgCost: number        = $derived(average(transaction.map(tx => tx.amount)));
+	let avgPrice: number       = $derived(average(transaction.map(tx => tx.costPerGallon)));
+	let avgDistance: number    = $derived(Math.round(average(transaction.map(tx => tx.miles)) * 100) / 100);
+	let avgMpg: number         = $derived(Math.round(average(transaction.map(tx => tx.mpg)) * 100) / 100);
+	let avgCostPerMile: number = $derived(average(transaction.map(tx => tx.costPerMile)));
+
+	const ACCENT = {
+		good:    { bg: 'rgba(26,143,46,0.08)', border: 'rgba(26,143,46,0.3)', fg: '#1a8f2e' },
+		bad:     { bg: 'rgba(211,47,47,0.07)', border: 'rgba(211,47,47,0.3)', fg: '#d32f2f' },
+		neutral: { bg: 'rgba(0,0,0,0.03)', border: 'rgba(0,0,0,0.12)', fg: '#555' }
+	};
+
+	let costAccent        = $derived(avgCost > 40 ? ACCENT.bad : ACCENT.good);
+	let priceAccent       = $derived(avgPrice > 4 ? ACCENT.bad : ACCENT.good);
+	let costPerMileAccent = $derived(avgCostPerMile > 0.2 ? ACCENT.bad : ACCENT.good);
+	let mpgAccent          = $derived(avgMpg && avgMpg < 18 ? ACCENT.bad : ACCENT.good);
 </script>
 
 <h2 id="summary-header">Gas Summary</h2>
 <div class="summary">
-	<div class="card" class:negative={avgCost > 40}>
+	<div class="card" style:--bg={costAccent.bg} style:--border={costAccent.border} style:--fg={costAccent.fg}>
 		<div class="header">Avg Cost</div>
 		<div class="value">{avgCost ? formatCurrency(avgCost) : '...'}</div>
 	</div>
-	<div class="card" class:negative={avgPrice > 4}>
+	<div class="card" style:--bg={priceAccent.bg} style:--border={priceAccent.border} style:--fg={priceAccent.fg}>
 		<div class="header">Avg Price</div>
 		<div class="value">{avgPrice ? formatCurrency(avgPrice) : '...'}</div>
 	</div>
-	<div class="card" class:negative={avgCostPerMile > 0.2}>
+	<div class="card" style:--bg={costPerMileAccent.bg} style:--border={costPerMileAccent.border} style:--fg={costPerMileAccent.fg}>
 		<div class="header">Avg Cost/Mile</div>
 		<div class="value">{avgCostPerMile ? formatCurrency(avgCostPerMile) : '...'}</div>
 	</div>
-	<div class="card">
+	<div class="card" style:--bg={ACCENT.neutral.bg} style:--border={ACCENT.neutral.border} style:--fg={ACCENT.neutral.fg}>
 		<div class="header">Avg Distance</div>
 		<div class="value">{avgDistance ? avgDistance + ' mi' : '...'}</div>
 	</div>
-	<div class="card" class:negative={avgMpg < 18}>
+	<div class="card" style:--bg={mpgAccent.bg} style:--border={mpgAccent.border} style:--fg={mpgAccent.fg}>
 		<div class="header">Avg MPG</div>
 		<div class="value">{avgMpg ? avgMpg : '...'}</div>
 	</div>
@@ -53,41 +66,34 @@
     }
 
     .summary {
-        display: flex;
-				flex-wrap: wrap;
-        gap: 0.5rem;
-        justify-content: center;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+        gap: 0.75rem;
+        max-width: 940px;
         margin: 1rem auto 2rem;
-        width: 80%;
     }
 
     .card {
-        background: rgba(0, 255, 0, 0.2);
-        padding: 1rem;
-        border: 2px solid rgba(0, 255, 0, 0.5);
-        border-radius: 0.5rem;
+        background: var(--bg);
+        border: 1px solid var(--border);
+        border-top: 3px solid var(--fg);
+        border-radius: 0.625rem;
+        padding: 1rem 1.1rem;
         text-align: center;
     }
 
     .header {
-        font-size: 1.5rem;
-        font-weight: bold;
-        width: max-content;
-        margin: 0 auto;
+        font-size: 0.82rem;
+        font-weight: 600;
+        color: #666;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
     }
 
     .value {
-        font-size: 2rem;
-				width: max-content;
-				margin: 0.4rem auto 0;
-    }
-
-    .card.negative {
-        background: rgba(255, 0, 0, 0.1);
-        border: 2px solid rgba(255, 0, 0, 0.3);
-    }
-
-    .negative {
-        color: red;
+        font-size: 1.7rem;
+        font-weight: 700;
+        color: var(--fg);
+        margin: 0.35rem 0 0;
     }
 </style>
