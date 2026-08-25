@@ -11,6 +11,7 @@
 	import { get, type Unsubscriber }                  from 'svelte/store';
 	import { basicAuth }                               from '$lib/credential';
 	import Chip                                        from '$lib/ui/Chip.svelte';
+	import MultiSelectDropdown                         from '$lib/ui/MultiSelectDropdown.svelte';
 	import { SORT_PARAMS, isDateSort, monthKey, monthLabel, bucketOther, type SortOption } from '$lib/transactionQuery';
 	import { tweened }                                 from 'svelte/motion';
 	import { cubicOut }                                from 'svelte/easing';
@@ -100,8 +101,8 @@
 	// ---- filters / sort (drive server-side query params) ----
 	let search: string                                                             = $state('');
 	let typeFilter: Record<Transaction['type'], boolean>                           = $state({ INCOME: true, EXPENSE: true, TITHING: true });
-	let categoryFilter: string                                                     = $state('All');
-	let locationFilter: string                                                     = $state('All');
+	let categoryFilter: string[]                                                   = $state([]);
+	let locationFilter: string[]                                                   = $state([]);
 	let sort: SortOption = $state('date-desc');
 
 	let categoryOptions: string[] = $state([]);
@@ -127,8 +128,8 @@
 	};
 
 	const appendFilterParams = (params: URLSearchParams) => {
-		if (categoryFilter !== 'All') params.set('category', categoryFilter);
-		if (locationFilter !== 'All') params.set('location', locationFilter);
+		categoryFilter.forEach(c => params.append('category', c));
+		locationFilter.forEach(l => params.append('location', l));
 		if (search) params.set('search', search);
 	};
 
@@ -429,8 +430,8 @@
 
 	const resetFilters = () => {
 		search         = '';
-		categoryFilter = 'All';
-		locationFilter = 'All';
+		categoryFilter = [];
+		locationFilter = [];
 		sort           = 'date-desc';
 		typeFilter     = { INCOME: true, EXPENSE: true, TITHING: true };
 		fetchFilterOptions();
@@ -854,18 +855,18 @@
 		<div class="search-wrap">
 			<input bind:value={search} oninput={onSearchInput} placeholder="Search category, merchant, owner…" type="search"/>
 		</div>
-		<select bind:value={categoryFilter} onchange={onListFilterChange}>
-			<option value="All">All categories</option>
-			{#each categoryOptions as category}
-				<option value={category}>{category}</option>
-			{/each}
-		</select>
-		<select bind:value={locationFilter} onchange={onListFilterChange}>
-			<option value="All">All locations</option>
-			{#each locationOptions as location}
-				<option value={location}>{location}</option>
-			{/each}
-		</select>
+		<MultiSelectDropdown
+			label="categories"
+			onchange={(next) => { categoryFilter = next; onListFilterChange(); }}
+			options={categoryOptions}
+			selected={categoryFilter}
+		/>
+		<MultiSelectDropdown
+			label="locations"
+			onchange={(next) => { locationFilter = next; onListFilterChange(); }}
+			options={locationOptions}
+			selected={locationFilter}
+		/>
 		<select bind:value={sort} onchange={onSortChange}>
 			<option value="date-desc">Date (newest)</option>
 			<option value="date-asc">Date (oldest)</option>
