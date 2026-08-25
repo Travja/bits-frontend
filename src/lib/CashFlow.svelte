@@ -83,8 +83,19 @@
 
 	// ---- chart type ----
 	let chartType: 'line' | 'bar' | 'doughnut' = $state('line');
-	const CHART_TAB_ORDER: ('line' | 'bar' | 'doughnut')[] = ['line', 'bar', 'doughnut'];
-	let chartTabIndex = $derived(CHART_TAB_ORDER.indexOf(chartType));
+
+	// Sliding tab indicator — the three tab labels aren't equal width ("Breakdown" is nearly
+	// twice "Bar"), so the indicator's box is measured from the actual active button rather
+	// than assumed to be an even third of the tab strip.
+	let lineTabBtn: HTMLButtonElement | undefined     = $state();
+	let barTabBtn: HTMLButtonElement | undefined      = $state();
+	let doughnutTabBtn: HTMLButtonElement | undefined = $state();
+	let tabIndicator = $state({ left: 0, width: 0 });
+
+	$effect(() => {
+		const btn = chartType === 'line' ? lineTabBtn : chartType === 'bar' ? barTabBtn : doughnutTabBtn;
+		if (btn) tabIndicator = { left: btn.offsetLeft, width: btn.offsetWidth };
+	});
 
 	// ---- filters / sort (drive server-side query params) ----
 	let search: string                                                             = $state('');
@@ -808,10 +819,10 @@
 	<div class="chart-card-header">
 		<div class="chart-title">{chartType === 'doughnut' ? 'Category Breakdown' : 'Income vs Expense'}</div>
 		<div class="chart-tabs">
-			<div class="tab-indicator" style:transform="translateX({chartTabIndex * 100}%)"></div>
-			<button class="tab-btn" class:active={chartType === 'line'} onclick={() => setChartType('line')}>Line</button>
-			<button class="tab-btn" class:active={chartType === 'bar'} onclick={() => setChartType('bar')}>Bar</button>
-			<button class="tab-btn" class:active={chartType === 'doughnut'} onclick={() => setChartType('doughnut')}>Breakdown</button>
+			<div class="tab-indicator" style:left="{tabIndicator.left}px" style:width="{tabIndicator.width}px"></div>
+			<button bind:this={lineTabBtn} class="tab-btn" class:active={chartType === 'line'} onclick={() => setChartType('line')}>Line</button>
+			<button bind:this={barTabBtn} class="tab-btn" class:active={chartType === 'bar'} onclick={() => setChartType('bar')}>Bar</button>
+			<button bind:this={doughnutTabBtn} class="tab-btn" class:active={chartType === 'doughnut'} onclick={() => setChartType('doughnut')}>Breakdown</button>
 		</div>
 	</div>
 	<!-- Both layouts stay mounted (toggled via CSS, not {#if}) so bind:this refs are always
@@ -973,18 +984,15 @@
         position: absolute;
         top: 0.25rem;
         bottom: 0.25rem;
-        left: 0.25rem;
-        width: calc((100% - 0.5rem) / 3);
         background: #007bff;
         border-radius: 0.375rem;
-        transition: transform 0.25s ease;
+        transition: left 0.25s ease, width 0.25s ease;
     }
 
     .tab-btn {
         all: unset;
         position: relative;
         z-index: 1;
-        flex: 1;
         text-align: center;
         cursor: pointer;
         padding: 0.4rem 0.75rem;
