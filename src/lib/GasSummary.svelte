@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { formatCurrency }      from '$lib/lib.js';
 	import type { GasTransaction } from '$lib/transaction';
+	import { tweened }             from 'svelte/motion';
+	import { cubicOut }            from 'svelte/easing';
 
 	interface Props {
 		transaction?: GasTransaction[];
@@ -22,6 +24,19 @@
 	let avgMpg: number         = $derived(Math.round(average(transaction.map(tx => tx.mpg)) * 100) / 100);
 	let avgCostPerMile: number = $derived(average(transaction.map(tx => tx.costPerMile)));
 
+	const tweenOpts = { duration: 500, easing: cubicOut };
+	const avgCostT        = tweened(0, tweenOpts);
+	const avgPriceT       = tweened(0, tweenOpts);
+	const avgDistanceT    = tweened(0, tweenOpts);
+	const avgMpgT         = tweened(0, tweenOpts);
+	const avgCostPerMileT = tweened(0, tweenOpts);
+
+	$effect(() => { avgCostT.set(avgCost); });
+	$effect(() => { avgPriceT.set(avgPrice); });
+	$effect(() => { avgDistanceT.set(avgDistance); });
+	$effect(() => { avgMpgT.set(avgMpg); });
+	$effect(() => { avgCostPerMileT.set(avgCostPerMile); });
+
 	const ACCENT = {
 		good:    { bg: 'rgba(26,143,46,0.08)', border: 'rgba(26,143,46,0.3)', fg: '#1a8f2e' },
 		bad:     { bg: 'rgba(211,47,47,0.07)', border: 'rgba(211,47,47,0.3)', fg: '#d32f2f' },
@@ -38,23 +53,23 @@
 <div class="summary">
 	<div class="card" style:--bg={costAccent.bg} style:--border={costAccent.border} style:--fg={costAccent.fg}>
 		<div class="header">Avg Cost</div>
-		<div class="value">{avgCost ? formatCurrency(avgCost) : '...'}</div>
+		<div class="value">{avgCost ? formatCurrency($avgCostT) : '...'}</div>
 	</div>
 	<div class="card" style:--bg={priceAccent.bg} style:--border={priceAccent.border} style:--fg={priceAccent.fg}>
 		<div class="header">Avg Price</div>
-		<div class="value">{avgPrice ? formatCurrency(avgPrice) : '...'}</div>
+		<div class="value">{avgPrice ? formatCurrency($avgPriceT) : '...'}</div>
 	</div>
 	<div class="card" style:--bg={costPerMileAccent.bg} style:--border={costPerMileAccent.border} style:--fg={costPerMileAccent.fg}>
 		<div class="header">Avg Cost/Mile</div>
-		<div class="value">{avgCostPerMile ? formatCurrency(avgCostPerMile) : '...'}</div>
+		<div class="value">{avgCostPerMile ? formatCurrency($avgCostPerMileT) : '...'}</div>
 	</div>
 	<div class="card" style:--bg={ACCENT.neutral.bg} style:--border={ACCENT.neutral.border} style:--fg={ACCENT.neutral.fg}>
 		<div class="header">Avg Distance</div>
-		<div class="value">{avgDistance ? avgDistance + ' mi' : '...'}</div>
+		<div class="value">{avgDistance ? $avgDistanceT.toFixed(2) + ' mi' : '...'}</div>
 	</div>
 	<div class="card" style:--bg={mpgAccent.bg} style:--border={mpgAccent.border} style:--fg={mpgAccent.fg}>
 		<div class="header">Avg MPG</div>
-		<div class="value">{avgMpg ? avgMpg : '...'}</div>
+		<div class="value">{avgMpg ? $avgMpgT.toFixed(2) : '...'}</div>
 	</div>
 </div>
 

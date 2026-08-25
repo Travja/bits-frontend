@@ -12,6 +12,8 @@
 	import { basicAuth }                               from '$lib/credential';
 	import Chip                                        from '$lib/ui/Chip.svelte';
 	import { SORT_PARAMS, isDateSort, monthKey, monthLabel, bucketOther, type SortOption } from '$lib/transactionQuery';
+	import { tweened }                                 from 'svelte/motion';
+	import { cubicOut }                                from 'svelte/easing';
 
 	interface Props {
 		startDate?: string;
@@ -49,6 +51,24 @@
 	let incomeChart: Chart<any, any, any> | undefined;
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	let expenseChart: Chart<any, any, any> | undefined;
+
+	// The total shown in the center of each donut — starts at that donut's full fetched total,
+	// but a legend click (toggling a slice's visibility) narrows it to just what's still shown,
+	// without waiting on a refetch. Tweened so it animates to the new figure rather than jumping.
+	let incomeVisibleTotal  = $state(0);
+	let expenseVisibleTotal = $state(0);
+	// Where to place the HTML total-overlay so it lands in the middle of the ring rather than
+	// the middle of the whole canvas (which also includes the legend below the ring) — read
+	// from Chart.js's own computed plot area so it stays right through resizes/legend reflow.
+	let incomeCenterPos  = $state({ x: 0, y: 0 });
+	let expenseCenterPos = $state({ x: 0, y: 0 });
+	const donutTweenOpts = { duration: 500, easing: cubicOut };
+	const incomeTotalT  = tweened(0, donutTweenOpts);
+	const expenseTotalT = tweened(0, donutTweenOpts);
+	$effect(() => { incomeVisibleTotal = incomeDonut.total; });
+	$effect(() => { expenseVisibleTotal = expenseDonut.total; });
+	$effect(() => { incomeTotalT.set(incomeVisibleTotal); });
+	$effect(() => { expenseTotalT.set(expenseVisibleTotal); });
 	const DONUT_MAX_SLICES = 7;
 
 	let mounted = $state(false);
@@ -63,6 +83,8 @@
 
 	// ---- chart type ----
 	let chartType: 'line' | 'bar' | 'doughnut' = $state('line');
+	const CHART_TAB_ORDER: ('line' | 'bar' | 'doughnut')[] = ['line', 'bar', 'doughnut'];
+	let chartTabIndex = $derived(CHART_TAB_ORDER.indexOf(chartType));
 
 	// ---- filters / sort (drive server-side query params) ----
 	let search: string                                                             = $state('');
@@ -406,26 +428,11 @@
 		if (chartType === 'doughnut') fetchDonutData();
 	};
 
-	// Draws each donut's total in the center of the ring — Chart.js has no built-in for this.
-	const makeCenterTextPlugin = (getTotal: () => number) => ({
-		id:        'centerText',
-		// eslint-disable-next-line @typescript-eslint/no-explicit-any
-		afterDraw: (chartInstance: any) => {
-			const { ctx, chartArea } = chartInstance;
-			if (!chartArea) return;
-			const x = (chartArea.left + chartArea.right) / 2;
-			const y = (chartArea.top + chartArea.bottom) / 2;
-			ctx.save();
-			ctx.textAlign = 'center';
-			ctx.textBaseline = 'middle';
-			ctx.font = '700 17px Roboto, sans-serif';
-			ctx.fillStyle = '#222';
-			ctx.fillText(formatCurrency(getTotal()), x, y);
-			ctx.restore();
-		}
-	});
-
-	const buildDonutConfig = (getOther: () => { category: string, amount: number }[], getTotal: () => number) => ({
+	const buildDonutConfig = (
+		getOther: () => { category: string, amount: number }[],
+		onVisibilityChange: (visibleTotal: number) => void,
+		onLayout: (pos: { x: number, y: number }) => void
+	) => ({
 		type:    'doughnut' as const,
 		data:    { labels: [], datasets: [] },
 		options: {
@@ -433,7 +440,28 @@
 			maintainAspectRatio: false,
 			cutout:              '65%',
 			plugins:             {
-				legend:  { display: true, position: 'bottom' as const, labels: { boxWidth: 10, font: { size: 11 } } },
+				legend:  {
+					display:  true,
+					position: 'bottom' as const,
+					labels:   { boxWidth: 10, font: { size: 11 } },
+					// Default legend behavior for a doughnut just toggles a slice's visibility —
+					// it doesn't know our center total needs to follow along. Do the toggle
+					// ourselves, then re-sum only what's still visible.
+					// eslint-disable-next-line @typescript-eslint/no-explicit-any
+					onClick:  (_e: unknown, legendItem: { index?: number }, legend: any) => {
+						const ci    = legend.chart;
+						const index = legendItem.index;
+						if (index === undefined) return;
+						ci.toggleDataVisibility(index);
+						ci.update();
+						const data = ci.data.datasets[0].data as number[];
+						let visibleTotal = 0;
+						data.forEach((value, i) => {
+							if (ci.getDataVisibility(i)) visibleTotal += value;
+						});
+						onVisibilityChange(visibleTotal);
+					}
+				},
 				tooltip: {
 					callbacks: {
 						label:     (context: TooltipItem<'doughnut'>) => `${context.label}: ${formatCurrency(<number>context.parsed)}`,
@@ -447,17 +475,30 @@
 				}
 			}
 		},
-		plugins: [makeCenterTextPlugin(getTotal)]
+		// No-draw plugin — just reports the ring's actual plotted area (excluding the legend
+		// below it) so the HTML total-overlay can be positioned at its true center.
+		plugins: [{
+			id:          'reportCenter',
+			// eslint-disable-next-line @typescript-eslint/no-explicit-any
+			afterLayout: (chartInstance: any) => {
+				const { left, right, top, bottom } = chartInstance.chartArea;
+				onLayout({ x: (left + right) / 2, y: (top + bottom) / 2 });
+			}
+		}]
 	});
 
 	const createDonutCharts = () => {
 		if (incomeCanvas && !incomeChart) {
 			const ctx = incomeCanvas.getContext('2d');
-			if (ctx) incomeChart = new Chart(ctx, buildDonutConfig(() => incomeDonut.other, () => incomeDonut.total));
+			if (ctx) incomeChart = new Chart(ctx, buildDonutConfig(
+				() => incomeDonut.other, (v) => incomeVisibleTotal = v, (pos) => incomeCenterPos = pos
+			));
 		}
 		if (expenseCanvas && !expenseChart) {
 			const ctx = expenseCanvas.getContext('2d');
-			if (ctx) expenseChart = new Chart(ctx, buildDonutConfig(() => expenseDonut.other, () => expenseDonut.total));
+			if (ctx) expenseChart = new Chart(ctx, buildDonutConfig(
+				() => expenseDonut.other, (v) => expenseVisibleTotal = v, (pos) => expenseCenterPos = pos
+			));
 		}
 		updateChart();
 	};
@@ -767,6 +808,7 @@
 	<div class="chart-card-header">
 		<div class="chart-title">{chartType === 'doughnut' ? 'Category Breakdown' : 'Income vs Expense'}</div>
 		<div class="chart-tabs">
+			<div class="tab-indicator" style:transform="translateX({chartTabIndex * 100}%)"></div>
 			<button class="tab-btn" class:active={chartType === 'line'} onclick={() => setChartType('line')}>Line</button>
 			<button class="tab-btn" class:active={chartType === 'bar'} onclick={() => setChartType('bar')}>Bar</button>
 			<button class="tab-btn" class:active={chartType === 'doughnut'} onclick={() => setChartType('doughnut')}>Breakdown</button>
@@ -783,12 +825,14 @@
 			<div class="donut-col-title income">Income</div>
 			<div class="donut-canvas-wrap">
 				<canvas bind:this={incomeCanvas}></canvas>
+				<div class="donut-center" style:left="{incomeCenterPos.x}px" style:top="{incomeCenterPos.y}px">{formatCurrency($incomeTotalT)}</div>
 			</div>
 		</div>
 		<div class="donut-col">
 			<div class="donut-col-title expense">Expense</div>
 			<div class="donut-canvas-wrap">
 				<canvas bind:this={expenseCanvas}></canvas>
+				<div class="donut-center" style:left="{expenseCenterPos.x}px" style:top="{expenseCenterPos.y}px">{formatCurrency($expenseTotalT)}</div>
 			</div>
 		</div>
 	</div>
@@ -918,25 +962,40 @@
     }
 
     .chart-tabs {
+        position: relative;
         display: flex;
-        gap: 0.4rem;
         background: #eceff1;
         padding: 0.25rem;
         border-radius: 0.5rem;
     }
 
+    .tab-indicator {
+        position: absolute;
+        top: 0.25rem;
+        bottom: 0.25rem;
+        left: 0.25rem;
+        width: calc((100% - 0.5rem) / 3);
+        background: #007bff;
+        border-radius: 0.375rem;
+        transition: transform 0.25s ease;
+    }
+
     .tab-btn {
         all: unset;
+        position: relative;
+        z-index: 1;
+        flex: 1;
+        text-align: center;
         cursor: pointer;
         padding: 0.4rem 0.75rem;
         border-radius: 0.375rem;
         font-size: 0.85rem;
         font-weight: 500;
         color: #444;
+        transition: color 0.2s ease;
     }
 
     .tab-btn.active {
-        background: #007bff;
         color: #fff;
     }
 
@@ -975,6 +1034,15 @@
     .donut-canvas-wrap {
         position: relative;
         height: 18rem;
+    }
+
+    .donut-center {
+        position: absolute;
+        transform: translate(-50%, -50%);
+        pointer-events: none;
+        font-size: 1.05rem;
+        font-weight: 700;
+        color: #222;
     }
 
     .filter-bar {

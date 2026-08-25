@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { formatCurrency }   from '$lib/lib.js';
 	import type { Transaction } from '$lib/transaction';
+	import { tweened }          from 'svelte/motion';
+	import { cubicOut }         from 'svelte/easing';
 
 	interface Props {
 		transaction?: Transaction[];
@@ -15,6 +17,22 @@
 	let accruedTithing: number = $derived(grossIncome * 0.1);
 	let tithingPaid: number    = $derived(transaction.filter(tx => tx.type === 'TITHING').reduce((acc, tx) => acc + tx.amount, 0));
 	let netIncome: number      = $derived(grossIncome - accruedTithing - grossExpense);
+
+	// Card values tween to their new total (rather than snapping) whenever the underlying
+	// filters/date range change the numbers. The raw $derived values above still drive the
+	// "..." loading check and the accent colors, so those switch immediately.
+	const tweenOpts = { duration: 500, easing: cubicOut };
+	const grossIncomeT  = tweened(0, tweenOpts);
+	const grossExpenseT = tweened(0, tweenOpts);
+	const tithingPaidT  = tweened(0, tweenOpts);
+	const tithingOwedT  = tweened(0, tweenOpts);
+	const netIncomeT    = tweened(0, tweenOpts);
+
+	$effect(() => { grossIncomeT.set(grossIncome); });
+	$effect(() => { grossExpenseT.set(grossExpense); });
+	$effect(() => { tithingPaidT.set(tithingPaid); });
+	$effect(() => { tithingOwedT.set(tithingOwed); });
+	$effect(() => { netIncomeT.set(netIncome); });
 
 	const ACCENT = {
 		income:  { bg: 'rgba(26,143,46,0.08)', border: 'rgba(26,143,46,0.3)', fg: '#1a8f2e' },
@@ -34,8 +52,8 @@
 		{#if !grossIncome}
 			<div class="value">...</div>
 		{:else}
-			<div class="value">{formatCurrency(grossIncome)}</div>
-			<div class="monthly">{formatCurrency(grossIncome / labels.length)}/mo</div>
+			<div class="value">{formatCurrency($grossIncomeT)}</div>
+			<div class="monthly">{formatCurrency($grossIncomeT / labels.length)}/mo</div>
 		{/if}
 	</div>
 	<div class="card" style:--bg={ACCENT.expense.bg} style:--border={ACCENT.expense.border} style:--fg={ACCENT.expense.fg}>
@@ -43,26 +61,26 @@
 		{#if !grossExpense}
 			<div class="value">...</div>
 		{:else}
-			<div class="value">{formatCurrency(grossExpense)}</div>
-			<div class="monthly">{formatCurrency(grossExpense / labels.length)}/mo</div>
+			<div class="value">{formatCurrency($grossExpenseT)}</div>
+			<div class="monthly">{formatCurrency($grossExpenseT / labels.length)}/mo</div>
 		{/if}
 	</div>
 	<div class="card" style:--bg={ACCENT.tithing.bg} style:--border={ACCENT.tithing.border} style:--fg={ACCENT.tithing.fg}>
 		<div class="header">Tithing Paid</div>
-		<div class="value">{formatCurrency(tithingPaid)}</div>
-		<div class="monthly">{formatCurrency(tithingPaid / labels.length)}/mo</div>
+		<div class="value">{formatCurrency($tithingPaidT)}</div>
+		<div class="monthly">{formatCurrency($tithingPaidT / labels.length)}/mo</div>
 	</div>
 	<div class="card" style:--bg={owedAccent.bg} style:--border={owedAccent.border} style:--fg={owedAccent.fg}>
 		<div class="header">Tithing Owed</div>
-		<div class="value">{formatCurrency(tithingOwed)}</div>
+		<div class="value">{formatCurrency($tithingOwedT)}</div>
 	</div>
 	<div class="card" style:--bg={netAccent.bg} style:--border={netAccent.border} style:--fg={netAccent.fg}>
 		<div class="header">Net Income</div>
 		{#if !netIncome}
 			<div class="value">...</div>
 		{:else}
-			<div class="value">{formatCurrency(netIncome)}</div>
-			<div class="monthly">{formatCurrency(netIncome / labels.length)}/mo</div>
+			<div class="value">{formatCurrency($netIncomeT)}</div>
+			<div class="monthly">{formatCurrency($netIncomeT / labels.length)}/mo</div>
 		{/if}
 	</div>
 </div>
