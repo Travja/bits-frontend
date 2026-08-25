@@ -29,8 +29,13 @@
 
 	let mounted = $state(false);
 
+	// Surfaced when the fetch fails outright, so a broken request doesn't just leave stale/empty
+	// data on screen with no explanation.
+	let fetchError: string | null = $state(null);
+
 	const fetchData = () => {
 		if (!mounted) return;
+		fetchError = null;
 
 		fetch(`${backendUrl}/gas?start=${startDate}&end=${endDate}${get(owner) !== 'All' ? `&owner=${get(owner)}` : ''}`,
 			{
@@ -43,7 +48,10 @@
 				transaction = data.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 				createChart();
 			})
-			.catch(err => console.error(err));
+			.catch(err => {
+				console.error(err);
+				fetchError = 'Something went wrong loading data. Try refreshing.';
+			});
 	};
 
 	let ownerSub: Unsubscriber;
@@ -238,6 +246,13 @@
 	});
 </script>
 
+{#if fetchError}
+	<div class="fetch-error" role="alert">
+		{fetchError}
+		<button class="dismiss-btn" onclick={() => fetchError = null}>Dismiss</button>
+	</div>
+{/if}
+
 <GasSummary {transaction} />
 
 <div class="chart-card">
@@ -281,6 +296,28 @@
 </div>
 
 <style>
+    .fetch-error {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        max-width: 940px;
+        margin: 1rem auto 0;
+        padding: 0.75rem 1rem;
+        background: rgba(211, 47, 47, 0.08);
+        border: 1px solid rgba(211, 47, 47, 0.3);
+        border-radius: 0.5rem;
+        color: #d32f2f;
+        font-size: 0.9rem;
+    }
+
+    .dismiss-btn {
+        all: unset;
+        cursor: pointer;
+        font-weight: 600;
+        text-decoration: underline;
+    }
+
     .chart-card {
         margin: 1rem auto 0;
         width: 60%;
