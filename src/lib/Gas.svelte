@@ -320,7 +320,8 @@
 
     .chart-card {
         margin: 1rem auto 0;
-        width: 60%;
+        width: 90%;
+        max-width: 720px;
         background: rgba(0, 0, 0, 0.03);
         border: 2px solid rgba(0, 0, 0, 0.08);
         border-radius: 0.75rem;
@@ -348,11 +349,13 @@
         color: gray;
         font-size: 0.85rem;
         margin: 1rem auto 0.5rem;
-        width: 60%;
+        width: 90%;
+        max-width: 720px;
     }
 
     .flat-list {
-        width: 60%;
+        width: 90%;
+        max-width: 720px;
         margin: 0 auto;
         display: flex;
         flex-direction: column;
