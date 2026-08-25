@@ -259,5 +259,8 @@
         padding: 1rem;
         border: 1px solid rgba(0, 0, 0, 0.1);
         border-radius: 0.5rem;
+        display: flex;
+        flex-direction: column;
+        gap: 0.4em;
     }
 </style>
