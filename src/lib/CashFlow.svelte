@@ -315,9 +315,11 @@
 	};
 
 	const getNetWorthData = () => {
-		// get the last entry for each month
-		const transactionData = transaction.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-			.filter(tx => tx.type === 'INCOME' || tx.type === 'EXPENSE')
+		// net is the running balance computed server-side in (date, id) order, so the month's closing balance is the
+		// net of its last row of any type (tithing and balance adjustments move it too). Copy before sorting so the
+		// shared transaction list keeps its order.
+		const transactionData = [...transaction]
+			.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.id - b.id)
 			.reduce((acc, tx) => {
 				const date = formatMonth(tx.date);
 				acc[date]  = tx;
@@ -329,12 +331,12 @@
 
 		let index = 0;
 		labels.forEach(label => {
-			let net = transactionData[label] ? transactionData[label].net : 0;
-			if (net == 0) {
-				// Use the previous month's net worth
-				if (netWorth.length > 0) {
-					net = netWorth[netWorth.length - 1].y;
-				}
+			let net = 0;
+			if (transactionData[label]) {
+				net = transactionData[label].net;
+			} else if (netWorth.length > 0) {
+				// No rows this month: carry the previous month's net worth forward
+				net = netWorth[netWorth.length - 1].y;
 			}
 			netWorth.push({ x: index++, y: net });
 		});

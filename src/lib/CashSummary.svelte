@@ -9,8 +9,8 @@
 
 	let { transaction = [], labels = [] }: Props = $props();
 
-	let tithing: number = $derived(grossIncome * 0.1);
 	let grossIncome: number = $derived(transaction.filter(tx => tx.type === 'INCOME').reduce((acc, tx) => acc + tx.amount, 0));
+	let tithing: number = $derived(grossIncome * 0.1);
 	let grossExpense: number = $derived(transaction.filter(tx => tx.type === 'EXPENSE').reduce((acc, tx) => acc + tx.amount, 0));
 	let netIncome: number = $derived(grossIncome - tithing - grossExpense);
 </script>
