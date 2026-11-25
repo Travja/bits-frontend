@@ -1,0 +1,5 @@
+# Only what the Dockerfile copies is sent to the build (keeps node_modules out of the context).
+*
+!build
+!build/**
+!httpd.conf
