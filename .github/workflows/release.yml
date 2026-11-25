@@ -1,0 +1,275 @@
+name: Release
+
+# Pushing a tag vMAJOR.MINOR.PATCH on a commit on main builds the static site,
+# builds <registry>/<namespace>/moneybits-frontend:vX.Y.Z for linux/amd64,
+# pushes it to the self-hosted registry, then moves :stable to it if it is the
+# highest release on main. Nothing here reaches a host: the host pulls :stable
+# itself.
+#
+# Repository settings (Settings -> Secrets and variables -> Actions):
+#   variable REGISTRY_HOST        registry hostname, no scheme, e.g. registry.example.com
+#   secret   REGISTRY_USERNAME    htpasswd user allowed to push
+#   secret   REGISTRY_PASSWORD
+#   variable IMAGE_NAMESPACE      optional: path in front of the image name
+#                                 (default: the repository owner, lower-cased)
+#   variable VITE_BACKEND_URL     optional: API origin baked into the bundle. Unset = ''
+#                                 = same origin (the API is served at / and this site
+#                                 at /ui/ on the same host).
+# The hostname is kept out of the source and masked in the logs. This repo is
+# public: never put a secret in a VITE_* value, it ends up in the bundle.
+#
+# The only host is x86, so the image is linux/amd64 only. A pull request that
+# changes the image's inputs runs the same build and smoke test with every
+# push step skipped.
+#
+# Cut a release:  git tag -a v1.2.3 -m "what changed" && git push origin v1.2.3
+# Roll back:      tag the known-good commit with the next version (tags only move forward).
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+  pull_request:
+    paths:
+      - '.github/workflows/release.yml'
+      - 'Dockerfile'
+      - '.dockerignore'
+      - 'httpd.conf'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'svelte.config.js'
+      - 'vite.config.ts'
+
+permissions:
+  contents: read
+
+# Releases queue behind each other instead of racing for :stable.
+concurrency:
+  group: frontend-release-${{ github.event_name == 'push' && 'publish' || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  REGISTRY_HOST: ${{ vars.REGISTRY_HOST }}
+  NAMESPACE: ${{ vars.IMAGE_NAMESPACE }}
+  NAME: moneybits-frontend
+  # Every manifest type the registry may hold; a HEAD without them can 404 on
+  # a manifest that exists.
+  MANIFEST_ACCEPT: >-
+    application/vnd.oci.image.index.v1+json,
+    application/vnd.docker.distribution.manifest.list.v2+json,
+    application/vnd.oci.image.manifest.v1+json,
+    application/vnd.docker.distribution.manifest.v2+json
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      REGISTRY_USERNAME: ${{ secrets.REGISTRY_USERNAME }}
+      REGISTRY_PASSWORD: ${{ secrets.REGISTRY_PASSWORD }}
+    steps:
+      - name: Mask the registry host
+        if: env.REGISTRY_HOST != ''
+        run: echo "::add-mask::$REGISTRY_HOST"
+
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check the tag
+        id: gate
+        env:
+          EVENT: ${{ github.event_name }}
+          TAG: ${{ github.ref_name }}
+          OWNER: ${{ github.repository_owner }}
+        run: |
+          ns="${NAMESPACE:-${OWNER,,}}"
+          if ! [[ "$ns" =~ ^[a-z0-9]+([._-][a-z0-9]+)*(/[a-z0-9]+([._-][a-z0-9]+)*)*$ ]]; then
+            echo "::error::Image namespace is not a valid registry path (set IMAGE_NAMESPACE)."
+            exit 1
+          fi
+          echo "::add-mask::$ns"
+          echo "repository=$ns/$NAME" >> "$GITHUB_OUTPUT"
+
+          if [ "$EVENT" != push ]; then
+            echo "Dry run: build and smoke test only, nothing is pushed."
+            {
+              echo "version=pr-${GITHUB_SHA::12}"
+              echo "latest=false"
+              echo "publish=false"
+            } >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if ! [[ "$TAG" =~ ^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ ]]; then
+            echo "::error::$TAG is not vMAJOR.MINOR.PATCH"
+            exit 1
+          fi
+
+          commit=$(git rev-parse "refs/tags/$TAG^{commit}")
+          if ! git merge-base --is-ancestor "$commit" origin/main; then
+            echo "::error::$TAG points at $commit, which is not on main. Release from main only."
+            exit 1
+          fi
+
+          # :stable only ever moves forward. A patch to an older line, or a
+          # re-run of an old tag, publishes its own version and leaves :stable.
+          highest=$(git tag --merged origin/main -l 'v*' \
+            | grep -E '^v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$' \
+            | sort -V | tail -n 1)
+          latest=false
+          if [ "$highest" = "$TAG" ]; then latest=true; fi
+          echo "Releasing $TAG ($commit); highest release on main is $highest; move :stable: $latest"
+
+          if ! [[ "$REGISTRY_HOST" =~ ^[A-Za-z0-9.-]+(:[0-9]+)?$ ]]; then
+            echo "::error::Repository variable REGISTRY_HOST is unset or not a bare hostname (no scheme, no path)."
+            exit 1
+          fi
+          if [ -z "$REGISTRY_USERNAME" ] || [ -z "$REGISTRY_PASSWORD" ]; then
+            echo "::error::Secrets REGISTRY_USERNAME and REGISTRY_PASSWORD must be set."
+            exit 1
+          fi
+
+          {
+            echo "version=$TAG"
+            echo "latest=$latest"
+            echo "publish=true"
+          } >> "$GITHUB_OUTPUT"
+
+      # Asks the registry API directly (HEAD /v2/<name>/manifests/<tag>) so an
+      # outage or a bad password fails the release instead of reading as "not
+      # published yet". The registry uses plain htpasswd basic auth.
+      - name: Refuse to overwrite a published version
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          REPOSITORY: ${{ steps.gate.outputs.repository }}
+          VERSION: ${{ steps.gate.outputs.version }}
+        run: |
+          auth=$(printf '%s:%s' "$REGISTRY_USERNAME" "$REGISTRY_PASSWORD" | base64 -w0)
+          code=$(curl -sS -o /dev/null -w '%{http_code}' -I \
+            -H @<(printf 'Authorization: Basic %s\n' "$auth") \
+            -H "Accept: $MANIFEST_ACCEPT" \
+            "https://$REGISTRY_HOST/v2/$REPOSITORY/manifests/$VERSION") || code=000
+          case "$code" in
+            404) echo "$NAME:$VERSION is not published yet." ;;
+            200) echo "::error::$NAME:$VERSION already exists. Versions are immutable; tag a new one."; exit 1 ;;
+            *)   echo "::error::Registry answered HTTP $code for $NAME:$VERSION; cannot tell whether it exists."; exit 1 ;;
+          esac
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      # Build-time settings: VITE_BACKEND_URL only. Vite inlines every VITE_*
+      # value it can see into public JavaScript, so nothing else is passed in.
+      - name: Build the static site
+        env:
+          VITE_BACKEND_URL: ${{ vars.VITE_BACKEND_URL }}
+        run: |
+          npm run build
+          test -f build/404.html
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          load: true
+          tags: frontend:smoke
+          provenance: false
+          sbom: false
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.gate.outputs.version }}
+
+      # The SPA is served from the 404.html fallback (httpd.conf), so any path
+      # must come back with the app shell.
+      - name: Smoke test
+        run: |
+          docker run -d --name smoke -p 3000:3000 frontend:smoke
+          for i in $(seq 1 30); do
+            if curl -sS http://localhost:3000/login 2>/dev/null | grep -q '_app/immutable'; then
+              echo "Serving the app shell after ~${i}s"
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "::error::the container did not serve the app shell"
+          docker logs smoke 2>&1 | tail -n 50
+          exit 1
+
+      - name: Log in to the registry
+        if: steps.gate.outputs.publish == 'true'
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.REGISTRY_HOST }}
+          username: ${{ secrets.REGISTRY_USERNAME }}
+          password: ${{ secrets.REGISTRY_PASSWORD }}
+
+      # Same build, so every layer comes from the builder's cache.
+      - name: Push the version
+        if: steps.gate.outputs.publish == 'true'
+        id: push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          push: true
+          tags: ${{ env.REGISTRY_HOST }}/${{ steps.gate.outputs.repository }}:${{ steps.gate.outputs.version }}
+          provenance: false
+          sbom: false
+          labels: |
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.gate.outputs.version }}
+
+      - name: Record the version
+        if: steps.gate.outputs.publish == 'true'
+        env:
+          REPOSITORY: ${{ steps.gate.outputs.repository }}
+          VERSION: ${{ steps.gate.outputs.version }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          image="$REGISTRY_HOST/$REPOSITORY"
+          pushed=$(docker buildx imagetools inspect "$image:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          if [ "$pushed" != "$DIGEST" ]; then
+            echo "::error::$NAME:$VERSION is $pushed, expected $DIGEST"
+            exit 1
+          fi
+          echo "Published \`$NAME:$VERSION\` = \`$DIGEST\`" >> "$GITHUB_STEP_SUMMARY"
+
+      # The host follows :stable, so this is the step that deploys. The manifest
+      # is copied through the registry API byte for byte, so :stable carries
+      # the exact digest that was pushed. (`docker buildx imagetools create`
+      # would wrap a single-platform manifest in a new index with a different
+      # digest.)
+      - name: Move stable
+        if: steps.gate.outputs.latest == 'true'
+        working-directory: ${{ runner.temp }}
+        env:
+          REPOSITORY: ${{ steps.gate.outputs.repository }}
+          VERSION: ${{ steps.gate.outputs.version }}
+          DIGEST: ${{ steps.push.outputs.digest }}
+        run: |
+          auth=$(printf '%s:%s' "$REGISTRY_USERNAME" "$REGISTRY_PASSWORD" | base64 -w0)
+          api() { curl -fsS -H @<(printf 'Authorization: Basic %s\n' "$auth") "$@"; }
+          url="https://$REGISTRY_HOST/v2/$REPOSITORY/manifests"
+          api -H "Accept: $MANIFEST_ACCEPT" -D headers -o manifest "$url/$DIGEST"
+          type=$(sed -n 's/^content-type: *//Ip' headers | tr -d '\r')
+          got="sha256:$(sha256sum manifest | cut -d' ' -f1)"
+          if [ "$got" != "$DIGEST" ]; then
+            echo "::error::fetched manifest is $got, expected $DIGEST"
+            exit 1
+          fi
+          api -X PUT -H "Content-Type: $type" --data-binary @manifest -o /dev/null "$url/stable"
+          moved=$(api -I -H "Accept: $MANIFEST_ACCEPT" "$url/stable" | sed -n 's/^docker-content-digest: *//Ip' | tr -d '\r')
+          if [ "$moved" != "$DIGEST" ]; then
+            echo "::error::stable is $moved, expected $DIGEST"
+            exit 1
+          fi
+          echo "\`$NAME:stable\` -> $VERSION (\`$DIGEST\`)" >> "$GITHUB_STEP_SUMMARY"
