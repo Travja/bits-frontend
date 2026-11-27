@@ -6,7 +6,7 @@ export interface Transaction {
 	id: number,
 	location: string,
 	recurring?: boolean,
-	type: 'INCOME' | 'EXPENSE',
+	type: 'INCOME' | 'EXPENSE' | 'RECURRING_EXPENSE' | 'TITHING' | 'BALANCE_ADJUSTMENT',
 	owner: string
 }
 
