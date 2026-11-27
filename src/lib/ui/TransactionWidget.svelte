@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { isExpense } from '$lib/transactionQuery';
 	import type { Transaction }           from '$lib/transaction';
 	import { formatCurrency, formatDate } from '$lib/lib.js';
 
@@ -9,7 +10,7 @@
     let { transaction }: Props = $props();
 </script>
 
-<div class="transaction" class:expense={transaction.type === 'EXPENSE'} class:income={transaction.type === 'INCOME'} class:tithing={transaction.type === 'TITHING'}>
+<div class="transaction" class:expense={isExpense(transaction.type)} class:income={transaction.type === 'INCOME'} class:tithing={transaction.type === 'TITHING'} class:adjustment={transaction.type === 'BALANCE_ADJUSTMENT'}>
 	<div class="accent-bar"></div>
 	<div class="details">
 		<span class="date">{formatDate(transaction.date)}</span>
@@ -60,6 +61,15 @@
 
     .tithing .accent-bar {
         background: #b8790a;
+    }
+
+    .transaction.adjustment {
+        background-color: rgba(0, 0, 0, 0.05);
+        border: 1px solid rgba(0, 0, 0, 0.25);
+    }
+
+    .adjustment .accent-bar {
+        background: #555;
     }
 
     .description {

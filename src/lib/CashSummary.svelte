@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { isExpense } from '$lib/transactionQuery';
 	import { formatCurrency }   from '$lib/lib.js';
 	import type { Transaction } from '$lib/transaction';
 	import { tweened }          from 'svelte/motion';
@@ -13,7 +14,7 @@
 	let { transaction = [], labels = [], tithingOwed = 0 }: Props = $props();
 
 	let grossIncome: number    = $derived(transaction.filter(tx => tx.type === 'INCOME').reduce((acc, tx) => acc + tx.amount, 0));
-	let grossExpense: number   = $derived(transaction.filter(tx => tx.type === 'EXPENSE').reduce((acc, tx) => acc + tx.amount, 0));
+	let grossExpense: number   = $derived(transaction.filter(tx => isExpense(tx.type)).reduce((acc, tx) => acc + tx.amount, 0));
 	let accruedTithing: number = $derived(grossIncome * 0.1);
 	let tithingPaid: number    = $derived(transaction.filter(tx => tx.type === 'TITHING').reduce((acc, tx) => acc + tx.amount, 0));
 	let netIncome: number      = $derived(grossIncome - accruedTithing - grossExpense);

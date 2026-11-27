@@ -12,7 +12,7 @@
 	import { basicAuth }                               from '$lib/credential';
 	import Chip                                        from '$lib/ui/Chip.svelte';
 	import MultiSelectDropdown                         from '$lib/ui/MultiSelectDropdown.svelte';
-	import { SORT_PARAMS, isDateSort, monthKey, monthLabel, bucketOther, type SortOption } from '$lib/transactionQuery';
+	import { isExpense, SORT_PARAMS, isDateSort, monthKey, monthLabel, bucketOther, type SortOption } from '$lib/transactionQuery';
 	import { tweened }                                 from 'svelte/motion';
 	import { cubicOut }                                from 'svelte/easing';
 
@@ -27,7 +27,8 @@
 			}: Props = $props();
 
 	const PAGE_SIZE = 15;
-	const TYPE_COLOR = { INCOME: '#1a8f2e', EXPENSE: '#d32f2f', TITHING: '#b8790a' };
+	const TYPE_COLOR = { INCOME: '#1a8f2e', EXPENSE: '#d32f2f', TITHING: '#b8790a', BALANCE_ADJUSTMENT: '#555555' };
+	const ALL_TYPES: Record<Transaction['type'], boolean> = { INCOME: true, EXPENSE: true, RECURRING_EXPENSE: true, TITHING: true, BALANCE_ADJUSTMENT: true };
 	const DONUT_PALETTE = ['#4C6EF5', '#F76707', '#12B886', '#E64980', '#7048E8', '#FAB005', '#1098AD', '#495057'];
 
 	// Full date range, owner-scoped only — feeds CashSummary + the line/bar chart, which
@@ -100,7 +101,7 @@
 
 	// ---- filters / sort (drive server-side query params) ----
 	let search: string                                                             = $state('');
-	let typeFilter: Record<Transaction['type'], boolean>                           = $state({ INCOME: true, EXPENSE: true, TITHING: true });
+	let typeFilter: Record<Transaction['type'], boolean>                           = $state({ ...ALL_TYPES });
 	let categoryFilter: string[]                                                   = $state([]);
 	let locationFilter: string[]                                                   = $state([]);
 	let sort: SortOption = $state('date-desc');
@@ -133,7 +134,7 @@
 		if (search) params.set('search', search);
 	};
 
-	const noTypesSelected = () => !typeFilter.INCOME && !typeFilter.EXPENSE && !typeFilter.TITHING;
+	const noTypesSelected = () => !Object.values(typeFilter).some(Boolean);
 
 	const fetchChartData = () => {
 		if (!mounted) return;
@@ -196,6 +197,7 @@
 		params.set('end', endDate);
 		if (get(owner) !== 'All') params.set('owner', get(owner));
 		params.append('type', type);
+		if (type === 'EXPENSE') params.append('type', 'RECURRING_EXPENSE');
 		appendFilterParams(params);
 
 		fetch(`${backendUrl}/transactions?${params}`, { headers: authHeaders() })
@@ -386,8 +388,8 @@
 			const totals = (rows[headerIndex] as Extract<ListRow, { kind: 'header' }>).totals;
 			totals.count++;
 			if (tx.type === 'INCOME') totals.income += tx.amount;
-			else if (tx.type === 'EXPENSE') totals.expense += tx.amount;
-			else totals.tithing += tx.amount;
+			else if (isExpense(tx.type)) totals.expense += tx.amount;
+			else if (tx.type === 'TITHING') totals.tithing += tx.amount;
 			if (isMonthOpen(key)) rows.push({ kind: 'tx', key: String(tx.id), tx });
 		}
 		return rows;
@@ -407,7 +409,8 @@
 
 	// Type filter changes what the chart, option lists, and list can show — refetch everything scoped by it.
 	const toggleType = (type: Transaction['type']) => {
-		typeFilter = { ...typeFilter, [type]: !typeFilter[type] };
+		const on = !typeFilter[type];
+		typeFilter = { ...typeFilter, [type]: on, ...(type === 'EXPENSE' ? { RECURRING_EXPENSE: on } : {}) };
 		fetchFilterOptions();
 		fetchListPage(true);
 		fetchMonthlySummary();
@@ -433,7 +436,7 @@
 		categoryFilter = [];
 		locationFilter = [];
 		sort           = 'date-desc';
-		typeFilter     = { INCOME: true, EXPENSE: true, TITHING: true };
+		typeFilter     = { ...ALL_TYPES };
 		fetchFilterOptions();
 		fetchListPage(true);
 		fetchMonthlySummary();
@@ -597,7 +600,8 @@
 									const item      = context[0];
 									const dataLabel = item.dataset.label || '';
 
-									const actualData                                          = transaction.filter(tx => formatMonth(tx.date) === item.label && tx.type === dataLabel.toUpperCase());
+									const actualData                                          = transaction.filter(tx => formatMonth(tx.date) === item.label
+										&& (dataLabel === 'Expense' ? isExpense(tx.type) : tx.type === dataLabel.toUpperCase()));
 									const groupedData: { category: string, amount: number }[] = [];
 									if (actualData) {
 										actualData.forEach(tx => {
@@ -723,7 +727,7 @@
 
 	const getExpenseData = () => {
 		// Parse out expense data from the transactions
-		const expenseData      = transaction.filter(tx => tx.type === 'EXPENSE');
+		const expenseData      = transaction.filter(tx => isExpense(tx.type));
 		const expenseDataGroup = expenseData.reduce((acc, tx) => {
 			const date = formatMonth(tx.date);
 			if (acc[date]) {
@@ -752,9 +756,11 @@
 	};
 
 	const getNetWorthData = () => {
-		// get the last entry for each month
-		const transactionData = transaction.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-			.filter(tx => tx.type === 'INCOME' || tx.type === 'EXPENSE' || tx.type === 'TITHING')
+		// net is the running balance computed server-side in (date, id) order, so the month's closing balance is the
+		// net of its last row of any type (tithing and balance adjustments move it too). Copy before sorting so the
+		// shared transaction list keeps its order.
+		const transactionData = [...transaction]
+			.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime() || a.id - b.id)
 			.reduce((acc, tx) => {
 				const date = formatMonth(tx.date);
 				acc[date]  = tx;
@@ -882,6 +888,7 @@
 			<button class="type-chip" class:active={typeFilter.INCOME} style:--chip-color={TYPE_COLOR.INCOME} onclick={() => toggleType('INCOME')}>Income</button>
 			<button class="type-chip" class:active={typeFilter.EXPENSE} style:--chip-color={TYPE_COLOR.EXPENSE} onclick={() => toggleType('EXPENSE')}>Expense</button>
 			<button class="type-chip" class:active={typeFilter.TITHING} style:--chip-color={TYPE_COLOR.TITHING} onclick={() => toggleType('TITHING')}>Tithing</button>
+			<button class="type-chip" class:active={typeFilter.BALANCE_ADJUSTMENT} style:--chip-color={TYPE_COLOR.BALANCE_ADJUSTMENT} onclick={() => toggleType('BALANCE_ADJUSTMENT')}>Adjustment</button>
 		</div>
 	</div>
 </div>
