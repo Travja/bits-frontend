@@ -67,3 +67,6 @@ export const bucketOther = (
 		other:     rest
 	};
 };
+
+// A recurring expense is an expense everywhere in the UI: same chip, colour and totals.
+export const isExpense = (type: string): boolean => type === 'EXPENSE' || type === 'RECURRING_EXPENSE';

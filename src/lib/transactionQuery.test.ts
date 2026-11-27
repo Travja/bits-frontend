@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SORT_PARAMS, isDateSort, monthKey, monthLabel, bucketOther, type SortOption } from './transactionQuery';
+import { isExpense, SORT_PARAMS, isDateSort, monthKey, monthLabel, bucketOther, type SortOption } from './transactionQuery';
 
 describe('SORT_PARAMS', () => {
 	it('maps every sort dropdown option to a server sort/sortDir pair', () => {
@@ -92,5 +92,12 @@ describe('bucketOther', () => {
 		const { breakdown } = bucketOther(sorted, 7);
 		expect(breakdown).toHaveLength(7);
 		expect(breakdown[6].category).toBe('Other');
+	});
+});
+
+describe('isExpense', () => {
+	it('treats recurring expenses as expenses, and nothing else', () => {
+		expect(['EXPENSE', 'RECURRING_EXPENSE'].every(isExpense)).toBe(true);
+		expect(['INCOME', 'TITHING', 'BALANCE_ADJUSTMENT'].some(isExpense)).toBe(false);
 	});
 });
